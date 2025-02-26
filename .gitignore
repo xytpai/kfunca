@@ -1,0 +1,12 @@
+build
+dist
+*.egg-info
+.vscode
+tmp
+test_cu
+*.tmp
+a.out
+test.json
+*.bak
+*.ptx
+log
