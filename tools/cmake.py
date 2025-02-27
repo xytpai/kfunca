@@ -88,11 +88,16 @@ class CMake:
             # the error and exiting manually
             sys.exit(1)
     
-    def generate(self, rerun: bool):
+    def generate(self, rerun: bool, output_dir: str):
         if rerun and os.path.isfile(self._cmake_cache_file):
             os.remove(self._cmake_cache_file)
         args = ['..']
         _mkdir_p(self.build_dir)
         pybind11_dir = pybind11.__path__[0]
-        CMake.defines(args, pybind11_DIR=os.path.join(pybind11_dir, 'share/cmake/pybind11'))
+        CMake.defines(args, 
+                      pybind11_DIR=os.path.join(pybind11_dir, 'share/cmake/pybind11'),
+                      CMAKE_LIBRARY_OUTPUT_DIRECTORY=output_dir)
         self.run(args, os.environ)
+    
+    def build(self):
+        self.run(['--build', '.'], os.environ)
