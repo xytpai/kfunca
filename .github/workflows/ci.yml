@@ -22,3 +22,7 @@ jobs:
           pwd
           nvcc --version
           nvidia-smi
+          git clone https://github.com/xytpai/kfunca && cd kfunca
+          python setup.py develop
+          cd ..
+          rm -rf kfunca
