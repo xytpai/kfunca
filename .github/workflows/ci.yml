@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kfunca
+        uses: actions/checkout@v4
+      - name: Run lint check
+        run: |
+          find . \( -name "*.h" -o -name "*.cpp" -o -name "*.cu" \) -exec clang-format --dry-run -Werror {} +
+  cuda-env:
+    runs-on: self-hosted
+    steps:
+      - name: CUDA env test
+        run: |
+          set -xe
+          pwd
+          nvcc --version
+          nvidia-smi
