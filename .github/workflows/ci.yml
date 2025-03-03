@@ -24,6 +24,6 @@ jobs:
           nvidia-smi
           git clone https://github.com/xytpai/kfunca && cd kfunca
           python setup.py develop
-          python -c "import sys, kfunca; sys.path.append('.'); kfunca.device_property()"
+          python -c "import sys; sys.path.append('.'); import kfunca; kfunca.device_property()"
           cd ..
           rm -rf kfunca
