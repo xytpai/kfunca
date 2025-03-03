@@ -19,6 +19,7 @@ jobs:
       - name: CUDA env test
         run: |
           set -xe
+          source /home/xytpai/.bashrc
           pwd
           nvcc --version
           nvidia-smi
