@@ -19,11 +19,11 @@ jobs:
       - name: CUDA env test
         run: |
           set -xe
-          source /home/xytpai/.bashrc
           pwd
           nvcc --version
           nvidia-smi
           git clone https://github.com/xytpai/kfunca && cd kfunca
+          git checkout $GITHUB_SHA
           python setup.py develop
           python -c "import sys; sys.path.append('.'); import kfunca; kfunca.device_property()"
           cd ..

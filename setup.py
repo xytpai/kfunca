@@ -43,7 +43,6 @@ class CleanCmd(Command):
             pat = re.compile(r"^#( BEGIN NOT-CLEAN-FILES )?")
             for wildcard in filter(None, ignores.split("\n")):
                 match = pat.match(wildcard)
-                print(wildcard)
                 if match:
                     if match.group(1):
                         # Marker is found and stop reading .gitignore.
