@@ -11,3 +11,4 @@ test.json
 *.bak
 *.ptx
 log
+*.so
