@@ -1,6 +1,7 @@
 import os
+import shutil
 import pathlib
-from setuptools import Extension, find_packages, setup
+from setuptools import Extension, find_packages, setup, Command
 from setuptools.command.build_ext import build_ext
 from tools.cmake import CMake
 
@@ -24,13 +25,51 @@ class BuildExt(build_ext):
         cmake.build()
 
 
+class CleanCmd(Command):
+    user_options = []
+
+    def initialize_options(self):
+        pass
+    
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        import glob
+        import re
+
+        with open(".gitignore") as f:
+            ignores = f.read()
+            pat = re.compile(r"^#( BEGIN NOT-CLEAN-FILES )?")
+            for wildcard in filter(None, ignores.split("\n")):
+                match = pat.match(wildcard)
+                print(wildcard)
+                if match:
+                    if match.group(1):
+                        # Marker is found and stop reading .gitignore.
+                        break
+                    # Ignore lines which begin with '#'.
+                else:
+                    # Don't remove absolute paths from the system
+                    wildcard = wildcard.lstrip("./")
+
+                    for filename in glob.glob(wildcard):
+                        try:
+                            os.remove(filename)
+                        except OSError:
+                            shutil.rmtree(filename, ignore_errors=True)
+
+
 def main():
     setup(
         name=package_name,
         version=version,
         description=("NA"),
         ext_modules=[Extension('kfunca', sources=[])],
-        cmdclass={"build_ext": BuildExt},
+        cmdclass={
+            "build_ext": BuildExt,
+            "clean": CleanCmd,
+        },
     )
 
 
