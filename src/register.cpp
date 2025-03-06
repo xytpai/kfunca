@@ -23,6 +23,7 @@ PYBIND11_MODULE(kfunca, m) {
         .export_values();
     m.def("zeros", &zeros, "Allocate empty tensor");
     py::class_<Tensor>(m, "Tensor")
+        .def("__repr__", &Tensor::to_string)
         .def("defined", &Tensor::defined)
         .def("numel", &Tensor::numel)
         .def("dim", &Tensor::dim)

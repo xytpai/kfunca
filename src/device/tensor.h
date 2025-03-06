@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <vector>
+#include <string>
 
 #include "exception.h"
 #include "data_ptr.h"
@@ -17,6 +18,7 @@ class Tensor;
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse = false);
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
+std::ostream &operator<<(std::ostream &os, const Tensor &t);
 
 template <typename T, int vec_size>
 struct dim_array {
@@ -137,6 +139,12 @@ public:
     }
     void copy_from_cpu_ptr(void *ptr);
     void copy_to_cpu_ptr(void *ptr);
+
+    std::string to_string() const {
+        std::ostringstream oss;
+        oss << *this;
+        return oss.str();
+    }
 };
 
 std::ostream &operator<<(std::ostream &os, const Tensor &t) {
