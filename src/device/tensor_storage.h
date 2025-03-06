@@ -3,7 +3,7 @@
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
 
-namespace memory {
+using namespace utils::memory;
 
 class TensorStorage : public intrusive_ptr_target {
 protected:
@@ -34,5 +34,3 @@ public:
         return size_;
     }
 };
-
-} // namespace memory

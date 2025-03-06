@@ -4,22 +4,32 @@
 #include <vector>
 
 #include "exception.h"
-#include "array.h"
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
 #include "scalar_type.h"
-#include "launcher.h"
+#include "tensor_storage.h"
 
 #define MAX_TENSOR_DIMS 12
 
-using namespace memory;
+using namespace utils::memory;
 
 class Tensor;
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse = false);
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 
-typedef memory::array<int64_t, MAX_TENSOR_DIMS> dim_t;
+template <typename T, int vec_size>
+struct dim_array {
+    T val[vec_size];
+    T &operator[](int i) {
+        return val[i];
+    }
+    T const &operator[](int i) const {
+        return val[i];
+    }
+};
+
+typedef dim_array<int64_t, MAX_TENSOR_DIMS> dim_t;
 
 class Tensor {
     int dim_;
@@ -28,11 +38,11 @@ class Tensor {
     ScalarType dtype_;
     int64_t numel_;
 
-    intrusive_ptr<memory::TensorStorage> storage_;
+    intrusive_ptr<TensorStorage> storage_;
 
     void new_storage_(int device) {
         size_t bytes = shape_[0] * stride_[0] * element_size(dtype_);
-        auto ptr = new memory::TensorStorage(bytes, device);
+        auto ptr = new TensorStorage(bytes, device);
         storage_.unsafe_set_ptr(ptr);
     }
     friend Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device);
@@ -113,7 +123,7 @@ public:
     size_t storage_ref_count() const {
         return storage_.ref_count();
     }
-    intrusive_ptr<memory::TensorStorage> storage() const {
+    intrusive_ptr<TensorStorage> storage() const {
         return storage_;
     }
     ScalarType dtype() const {
@@ -125,34 +135,9 @@ public:
     int64_t element_size_in_bytes() const {
         return element_size(dtype_);
     }
-    void copy_from_cpu_ptr(void *ptr) {
-        auto l = Launcher::GetInstance();
-        l->memcpy(data_ptr(), ptr, storage_bytes(), Launcher::Direction::H2D);
-    }
-    void copy_to_cpu_ptr(void *ptr) {
-        auto l = Launcher::GetInstance();
-        l->memcpy(ptr, data_ptr(), storage_bytes(), Launcher::Direction::D2H);
-    }
+    void copy_from_cpu_ptr(void *ptr);
+    void copy_to_cpu_ptr(void *ptr);
 };
-
-Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device) {
-    Tensor output(shape, dtype);
-    output.new_storage_(device);
-    return output;
-}
-
-Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse) {
-    Tensor output(shape, ndim, dtype, inverse);
-    output.new_storage_(device);
-    return output;
-}
-
-Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device) {
-    Tensor output(shape, dtype);
-    output.new_storage_(device);
-    Launcher::GetInstance()->memset(output.data_ptr(), 0, output.storage_bytes());
-    return output;
-}
 
 std::ostream &operator<<(std::ostream &os, const Tensor &t) {
     os << "Tensor(shape=[";

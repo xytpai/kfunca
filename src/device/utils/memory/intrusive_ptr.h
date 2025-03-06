@@ -3,6 +3,7 @@
 #include <iostream>
 #include <atomic>
 
+namespace utils {
 namespace memory {
 
 class intrusive_ptr_target;
@@ -109,4 +110,5 @@ public:
     }
 };
 
-} // namespace memory
+}
+} // namespace utils::memory

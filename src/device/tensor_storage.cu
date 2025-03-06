@@ -7,8 +7,6 @@
 #include "intrusive_ptr.h"
 #include "launcher.h"
 
-namespace memory {
-
 void delete_impl(void *ctx) {
     Launcher::GetInstance()->free(ctx);
 }
@@ -28,5 +26,3 @@ TensorStorage::~TensorStorage() {
     if (l->device() != device_) l->set_device(device_);
     ptr_.clear();
 }
-
-} // namespace memory

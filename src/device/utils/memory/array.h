@@ -2,6 +2,7 @@
 
 #include "launcher.h"
 
+namespace utils {
 namespace memory {
 
 template <typename T, int vec_size>
@@ -58,4 +59,5 @@ struct alignas(sizeof(T) * 2) vec2 {
     }
 };
 
-} // namespace memory
+}
+} // namespace utils::memory

@@ -3,9 +3,9 @@ project(kfunca)
 
 set(ROOTDIR ${PROJECT_SOURCE_DIR})
 
-include_directories(${ROOTDIR}/src/core)
 include_directories(${ROOTDIR}/src/device)
 include_directories(${ROOTDIR}/src/device/utils)
+include_directories(${ROOTDIR}/src/device/utils/memory)
 
 find_package(CUDA REQUIRED)
 if(CUDA_FOUND)

@@ -2,10 +2,11 @@
 
 #include <memory>
 
+namespace utils {
 namespace memory {
 
 using DeleterFnPtr = void (*)(void *);
-void delete_nothing(void *) {
+inline void delete_nothing(void *) {
 }
 
 class DataPtr {
@@ -79,4 +80,5 @@ inline bool operator!=(std::nullptr_t, const DataPtr &dp) noexcept {
     return dp;
 }
 
-} // namespace memory
+}
+} // namespace utils::memory

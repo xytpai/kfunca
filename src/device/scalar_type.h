@@ -3,7 +3,7 @@
 #include <iostream>
 #include <type_traits>
 
-#include "launcher.h"
+#include "exception.h"
 
 #define FORALL_BASIC_SCALAR_TYPES(_, ...)  \
     _(uint8_t, Byte, __VA_ARGS__)  /* 0 */ \
