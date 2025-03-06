@@ -116,6 +116,14 @@ public:
     int64_t stride(int d) const {
         return stride_[d];
     }
+    int64_t offset(const std::vector<int64_t> &indices) const {
+        CHECK_FAIL(indices.size() == dim_);
+        int64_t flat_index = 0;
+        for (size_t i = 0; i < indices.size(); ++i) {
+            flat_index += indices[i] * stride_[i];
+        }
+        return flat_index;
+    }
     void *data_ptr() const {
         return storage_.get()->data_ptr();
     }
@@ -146,16 +154,3 @@ public:
         return oss.str();
     }
 };
-
-std::ostream &operator<<(std::ostream &os, const Tensor &t) {
-    os << "Tensor(shape=[";
-    for (int i = 0; i < t.dim(); ++i)
-        os << t.shape(i) << ",";
-    os << "\b], stride=[";
-    for (int i = 0; i < t.dim(); ++i)
-        os << t.stride(i) << ",";
-    os << "\b], dtype=" << t.dtype();
-    os << ", numel=" << t.numel() << ", dim=" << t.dim();
-    os << ", device=" << t.device() << ")";
-    return os;
-}

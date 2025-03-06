@@ -2,6 +2,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #include <iostream>
+#include <vector>
 
 #include "device_info.h"
 #include "tensor.h"
@@ -10,19 +11,22 @@
 namespace py = pybind11;
 
 PYBIND11_MODULE(kfunca, m) {
-    m.def("device_info", &device_info, "Get device info");
-    py::enum_<ScalarType>(m, "ScalarType")
-        .value("Byte", ScalarType::Byte)
-        .value("Char", ScalarType::Char)
-        .value("Short", ScalarType::Short)
-        .value("Int", ScalarType::Int)
-        .value("Long", ScalarType::Long)
-        .value("Float", ScalarType::Float)
-        .value("Double", ScalarType::Double)
-        .value("Bool", ScalarType::Bool)
+    m.def("device_info", &device_info);
+    py::enum_<ScalarType>(m, "dtype")
+        .value("byte", ScalarType::Byte)
+        .value("char", ScalarType::Char)
+        .value("short", ScalarType::Short)
+        .value("int", ScalarType::Int)
+        .value("long", ScalarType::Long)
+        .value("float", ScalarType::Float)
+        .value("double", ScalarType::Double)
+        .value("bool", ScalarType::Bool)
         .export_values();
-    m.def("zeros", &zeros, "Allocate empty tensor");
-    py::class_<Tensor>(m, "Tensor")
+    m.def("empty", [](std::vector<int64_t> shape, ScalarType dtype, int device) {
+        return empty(shape, dtype, device);
+    });
+    m.def("zeros", &zeros);
+    py::class_<Tensor>(m, "tensor")
         .def("__repr__", &Tensor::to_string)
         .def("defined", &Tensor::defined)
         .def("numel", &Tensor::numel)
