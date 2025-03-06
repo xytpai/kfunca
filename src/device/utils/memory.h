@@ -7,4 +7,4 @@ struct alignas(sizeof(scalar_t) * vec_size) aligned_array {
     scalar_t val[vec_size];
 };
 
-}
+} // namespace utils

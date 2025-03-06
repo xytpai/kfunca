@@ -56,4 +56,4 @@ int randint_scalar(const int lower, const int upper) {
     return lower + (rand() % diff);
 }
 
-}
+} // namespace utils

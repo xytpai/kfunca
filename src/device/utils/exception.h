@@ -127,4 +127,4 @@ decltype(auto) msg_impl(const char *, const Args &...args) {
             msg_impl("", ##__VA_ARGS__));                   \
     }
 
-}
+} // namespace utils

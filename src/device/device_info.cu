@@ -23,7 +23,9 @@ struct ThreadCopyKernel {
         }
     }
     ThreadCopyKernel(const T *in, T *out, const size_t n) :
-        in_(in), out_(out), n_(n) {} 
+        in_(in), out_(out), n_(n) {
+    }
+
 private:
     const T *in_;
     T *out_;
@@ -51,7 +53,7 @@ void test_threads_copy(size_t n) {
     auto out_cpu = new float[n];
     for (int i = 0; i < n; i++)
         in_cpu[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-    
+
     auto in_device = l->malloc<float>(n);
     auto out_device = l->malloc<float>(n);
     l->memcpy((void *)in_device, (void *)in_cpu, n * sizeof(float), Launcher::COPY::H2D);
@@ -82,8 +84,8 @@ void test_threads_copy(size_t n) {
 }
 
 template <int LOOP>
-struct FMADLoopKernel{
-    DEVICE void operator()(ITEM& item) const {
+struct FMADLoopKernel {
+    DEVICE void operator()(ITEM &item) const {
         int index = item.thread_idx_x() + item.block_idx_x() * item.thread_range_x();
         float a = x_[index], b = -1.0f;
         for (int i = 0; i < LOOP; i++) {
@@ -93,7 +95,10 @@ struct FMADLoopKernel{
         }
         x_[index] = a;
     }
-    FMADLoopKernel(float *x) : x_(x) {}
+    FMADLoopKernel(float *x) :
+        x_(x) {
+    }
+
 private:
     float *x_;
 };

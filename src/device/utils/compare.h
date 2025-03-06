@@ -71,4 +71,4 @@ bool all_close(T *input, T *target, unsigned int len,
     return !is_error;
 }
 
-}
+} // namespace utils

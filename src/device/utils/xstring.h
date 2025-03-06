@@ -49,4 +49,4 @@ inline decltype(auto) str(const Args &...args) {
     return _str_wrapper<Args...>::call(args...);
 }
 
-}
+} // namespace utils

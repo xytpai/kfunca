@@ -81,6 +81,7 @@ struct ITEM {
     DEVICE_INLINE char *shared_ptr() {
         return smem_;
     };
+
 private:
     char *smem_;
 };
