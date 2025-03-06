@@ -6,7 +6,6 @@
 
 #include "compare.h"
 #include "exception.h"
-#include "memory.h"
 
 namespace utils {
 

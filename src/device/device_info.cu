@@ -3,6 +3,8 @@
 #include <iostream>
 
 #include "device_info.h"
+
+#include "array.h"
 #include "launcher.h"
 
 template <typename T, int vec_size>
@@ -16,7 +18,7 @@ struct ThreadCopyKernel {
                 out_[i] = in_[i];
             }
         } else {
-            using vec_t = utils::aligned_array<T, vec_size>;
+            using vec_t = memory::aligned_array<T, vec_size>;
             auto in_vec = reinterpret_cast<vec_t *>(const_cast<T *>(&in_[index]));
             auto out_vec = reinterpret_cast<vec_t *>(&out_[index]);
             *out_vec = *in_vec;
