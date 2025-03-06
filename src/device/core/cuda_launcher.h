@@ -233,6 +233,7 @@ private:
     Launcher() {
         // Need intrinsic API
         srand((unsigned)time(0));
+        stream_ = 0;
         CHECK_FAIL(cudaGetDeviceCount(&device_count_) == 0);
         for (int i = 0; i < device_count_; i++) {
             set_device(i, false);
