@@ -129,26 +129,26 @@ float fmad_loop() {
 void device_info() {
     device_property();
 
-    std::cout << "\n1GB threads copy test ...\n";
-    std::cout << "float1: ";
-    test_threads_copy<1>(1024 * 1024 * 256 + 2);
-    std::cout << "float2: ";
-    test_threads_copy<2>(1024 * 1024 * 256 + 2);
-    std::cout << "float4: ";
-    test_threads_copy<4>(1024 * 1024 * 256 + 2);
-    std::cout << "float8: ";
-    test_threads_copy<8>(1024 * 1024 * 256 + 2);
-    std::cout << "float16: ";
-    test_threads_copy<16>(1024 * 1024 * 256 + 2);
+    // std::cout << "\n1GB threads copy test ...\n";
+    // std::cout << "float1: ";
+    // test_threads_copy<1>(1024 * 1024 * 256 + 2);
+    // std::cout << "float2: ";
+    // test_threads_copy<2>(1024 * 1024 * 256 + 2);
+    // std::cout << "float4: ";
+    // test_threads_copy<4>(1024 * 1024 * 256 + 2);
+    // std::cout << "float8: ";
+    // test_threads_copy<8>(1024 * 1024 * 256 + 2);
+    // std::cout << "float16: ";
+    // test_threads_copy<16>(1024 * 1024 * 256 + 2);
 
-    std::cout << "\nFP32 MAD loop test ...\n";
-    constexpr int LOOP = 10000;
-    constexpr int block_size = 256;
-    constexpr int num_blocks = 2048;
-    for (int i = 0; i < 3; i++) {
-        auto timems = fmad_loop<LOOP, block_size, num_blocks>();
-        auto tflops =
-            2.0 * LOOP * LOOP * num_blocks * block_size / (timems / 1000) * 1e-12;
-        std::cout << tflops << " TFLOPS" << std::endl;
-    }
+    // std::cout << "\nFP32 MAD loop test ...\n";
+    // constexpr int LOOP = 10000;
+    // constexpr int block_size = 256;
+    // constexpr int num_blocks = 2048;
+    // for (int i = 0; i < 3; i++) {
+    //     auto timems = fmad_loop<LOOP, block_size, num_blocks>();
+    //     auto tflops =
+    //         2.0 * LOOP * LOOP * num_blocks * block_size / (timems / 1000) * 1e-12;
+    //     std::cout << tflops << " TFLOPS" << std::endl;
+    // }
 }
