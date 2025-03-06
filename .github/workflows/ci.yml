@@ -25,4 +25,4 @@ jobs:
           nvcc --version
           nvidia-smi
           python setup.py develop
-          python -c "import sys; sys.path.append('.'); import kfunca; kfunca.device_property()"
+          python -c "import kfunca; kfunca.device_info()"
