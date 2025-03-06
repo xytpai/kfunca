@@ -109,4 +109,4 @@ public:
     }
 };
 
-}
+} // namespace memory

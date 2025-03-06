@@ -79,4 +79,4 @@ inline bool operator!=(std::nullptr_t, const DataPtr &dp) noexcept {
     return dp;
 }
 
-}
+} // namespace memory

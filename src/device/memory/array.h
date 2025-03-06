@@ -58,4 +58,4 @@ struct alignas(sizeof(T) * 2) vec2 {
     }
 };
 
-}
+} // namespace memory
