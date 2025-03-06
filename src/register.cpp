@@ -6,6 +6,5 @@
 namespace py = pybind11;
 
 PYBIND11_MODULE(kfunca, m) {
-    m.def("device_property", &device_property, "Get device info");
-    m.def("global_memory_bandwidth", &global_memory_bandwidth, "Get global_memory_bandwidth");
+    m.def("device_info", &device_info, "Get device info");
 }

@@ -6,6 +6,8 @@
 #include <iomanip>
 #include <cmath>
 
+namespace utils {
+
 template <typename scalar_t>
 struct CompareMaxdiff {
     enum {
@@ -68,3 +70,5 @@ bool all_close(T *input, T *target, unsigned int len,
         std::cout << "Total " << errors << " errors\n";
     return !is_error;
 }
+
+} // namespace utils
