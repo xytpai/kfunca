@@ -94,7 +94,7 @@ public:
 #define M_UNLIKELY(expr) (expr)
 #endif
 
-void check_fail_(
+inline void check_fail_(
     const char *func,
     const char *file,
     uint32_t line,
@@ -103,7 +103,7 @@ void check_fail_(
     throw Error(func, file, line, cond, msg, "");
 }
 
-void check_fail_(
+inline void check_fail_(
     const char *func,
     const char *file,
     uint32_t line,
