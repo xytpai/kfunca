@@ -21,7 +21,7 @@ Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 std::ostream &operator<<(std::ostream &os, const Tensor &t);
 
 template <typename T, int vec_size>
-struct dim_array {
+struct d_array {
     T val[vec_size];
     T &operator[](int i) {
         return val[i];
@@ -31,7 +31,8 @@ struct dim_array {
     }
 };
 
-typedef dim_array<int64_t, MAX_TENSOR_DIMS> dim_t;
+typedef d_array<int64_t, MAX_TENSOR_DIMS> dim_t;
+using buffer_any = d_array<char, 256>;
 
 class Tensor {
     int dim_;
@@ -124,6 +125,7 @@ public:
         }
         return flat_index;
     }
+    buffer_any item(const std::vector<int64_t> &indices) const;
     void *data_ptr() const {
         return storage_.get()->data_ptr();
     }

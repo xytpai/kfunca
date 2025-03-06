@@ -21,6 +21,20 @@ void Tensor::copy_to_cpu_ptr(void *ptr) {
     l->memcpy(ptr, data_ptr(), storage_bytes(), Launcher::COPY::D2H);
 }
 
+buffer_any Tensor::item(const std::vector<int64_t> &indices) const {
+    auto l = Launcher::GetInstance();
+    auto offset_ = offset(indices);
+    buffer_any buffer;
+    DISPATCH_BASIC_TYPES(dtype(), "Tensor::item", [&]() {
+        l->memcpy(
+            (void *)(buffer.val),
+            (void *)((char *)data_ptr() + offset_ * sizeof(scalar_t)),
+            sizeof(scalar_t),
+            Launcher::COPY::D2H);
+    });
+    return buffer;
+}
+
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device) {
     Tensor output(shape, dtype);
     output.new_storage_(device);
@@ -40,11 +54,12 @@ Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device) {
     return output;
 }
 
-template <typename T>
-void print_tensor_(std::ostream &os, const Tensor &t, const T *data, std::vector<int64_t> indices = {}, int dim = 0) {
+void print_tensor_(std::ostream &os, const Tensor &t, std::vector<int64_t> indices = {}, int dim = 0) {
     if (dim == t.dim()) {
-        auto offset = t.offset(indices);
-        os << data[offset];
+        auto result_ = t.item(indices);
+        DISPATCH_BASIC_TYPES(t.dtype(), "print_tensor_", [&]() {
+            os << *reinterpret_cast<scalar_t *>(&result_);
+        });
         return;
     }
     if (dim > 0) os << "\n";
@@ -54,7 +69,7 @@ void print_tensor_(std::ostream &os, const Tensor &t, const T *data, std::vector
     for (ii = 0; ii < std::min<int64_t>(t.shape(dim), 20); ii++) {
         if (ii > 0) os << ", ";
         indices.push_back(ii);
-        print_tensor_(os, t, data, indices, dim + 1);
+        print_tensor_(os, t, indices, dim + 1);
         indices.pop_back();
     }
     if (t.shape(dim) != 20 && ii == 20) {
@@ -83,13 +98,7 @@ std::ostream &operator<<(std::ostream &os, const Tensor &t) {
     os << "\b], dtype=" << t.dtype();
     os << ", numel=" << t.numel() << ", dim=" << t.dim();
     os << ", device=" << t.device() << ") {\n";
-    auto l = Launcher::GetInstance();
-    DISPATCH_BASIC_TYPES(t.dtype(), "print", [&]() {
-        auto *data = new scalar_t[t.numel()];
-        l->memcpy((void *)data, t.data_ptr(), t.storage_bytes(), Launcher::COPY::D2H);
-        print_tensor_<scalar_t>(os, t, data);
-        delete[] data;
-    });
+    print_tensor_(os, t);
     os << "\n}";
     return os;
 }
