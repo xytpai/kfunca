@@ -94,7 +94,7 @@ __global__ void kernel_wrapper(func_t fn, args_t &&...args) {
 
 class Launcher {
 public:
-    enum Direction {
+    enum COPY {
         D2H = 0,
         H2D,
         D2D
@@ -149,27 +149,27 @@ public:
         if (ptr) CHECK_FAIL(cudaFree(ptr) == 0);
     }
 
-    void memcpy(void *dst, const void *src, unsigned int len, Direction dir, bool sync = true) {
+    void memcpy(void *dst, const void *src, unsigned int len, COPY dir, bool sync = true) {
         bool need_new_stream = stream_ != 0 ? false : true;
         if (need_new_stream) stream_begin();
         switch (dir) {
-        case Direction::H2D:
+        case COPY::H2D:
             CHECK_FAIL(cudaMemcpyAsync(dst, src, len * sizeof(char),
                                        cudaMemcpyHostToDevice, (cudaStream_t)stream_)
                        == 0);
             break;
-        case Direction::D2H:
+        case COPY::D2H:
             CHECK_FAIL(cudaMemcpyAsync(dst, src, len * sizeof(char),
                                        cudaMemcpyDeviceToHost, (cudaStream_t)stream_)
                        == 0);
             break;
-        case Direction::D2D:
+        case COPY::D2D:
             CHECK_FAIL(cudaMemcpyAsync(dst, src, len * sizeof(char),
                                        cudaMemcpyDeviceToDevice, (cudaStream_t)stream_)
                        == 0);
             break;
         default:
-            CHECK_FAIL(false, "invalid direction");
+            CHECK_FAIL(false, "invalid copy direction");
         }
         if (sync) stream_sync();
         if (need_new_stream) stream_end();
@@ -244,7 +244,7 @@ private:
             device_shared_memory_.push_back(prop.sharedMemPerBlock);
             device_global_memory_.push_back(prop.totalGlobalMem);
         }
-// #ifdef DEBUG
+#ifdef DEBUG
         std::cout << "Device count: " << device_count_ << std::endl
                   << std::endl;
         for (int i = 0; i < device_count_; i++) {
@@ -254,7 +254,7 @@ private:
             std::cout << "GlobalMemory(MB): " << device_global_memory_[i] / 1024 / 1024 << std::endl;
         }
         std::cout << std::endl;
-// #endif
+#endif
         set_device(0);
         sync_mode_ = true;
     }
@@ -280,11 +280,12 @@ private:
 
 public:
     template <typename func_t, typename... args_t>
-    void submit(
+    float submit(
         size_t slm_size,
         std::vector<int> grid_size,
         std::vector<int> block_size,
         func_t fn, args_t &&...args) {
+        float milliseconds = 0;
         dim3 grid, block;
         if (grid_size.size() == 1)
             grid = dim3(grid_size[0]);
@@ -308,15 +309,14 @@ public:
                                                                              std::forward<args_t>(args)...);
             cudaEventRecord(stop);
             cudaEventSynchronize(stop);
-            float milliseconds = 0;
             cudaEventElapsedTime(&milliseconds, start, stop);
-            std::cout << milliseconds << " ms" << std::endl;
         } else {
             kernel_wrapper<<<grid, block, slm_size, (cudaStream_t)stream_>>>(fn,
                                                                              std::forward<args_t>(args)...);
         }
 
         if (is_sync_mode()) stream_sync();
+        return milliseconds;
     }
 };
 Launcher *Launcher::m_pInstance = new Launcher();
@@ -335,3 +335,65 @@ template <typename T, typename info_t>
 DEVICE_INLINE T GPU_SHFL_XOR(info_t &info, T value, int laneMask, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
     return __shfl_xor_sync(mask, value, laneMask, width);
 }
+
+// device_property
+
+#define PRINT_PROP(PARAM) std::cout << #PARAM << ": " << prop.PARAM << std::endl;
+#define ENDL_ std::cout << std::endl;
+#define PRINT_(PARAM) std::cout << #PARAM << ": " << PARAM << std::endl;
+
+void device_property() {
+    int dev;
+    cudaDeviceProp prop;
+    cudaGetDevice(&dev);
+    cudaGetDeviceProperties(&prop, dev);
+
+    PRINT_PROP(name)
+    PRINT_PROP(clockRate)
+    PRINT_PROP(warpSize)
+    PRINT_PROP(multiProcessorCount)
+    ENDL_
+
+    PRINT_PROP(totalConstMem)
+    PRINT_PROP(totalGlobalMem)
+    PRINT_PROP(memoryBusWidth)
+    PRINT_PROP(memPitch)
+    PRINT_PROP(unifiedAddressing)
+    PRINT_PROP(unifiedFunctionPointers)
+    PRINT_PROP(ECCEnabled)
+    PRINT_PROP(l2CacheSize)
+    PRINT_PROP(persistingL2CacheMaxSize)
+    ENDL_
+
+    PRINT_PROP(sharedMemPerBlock)
+    PRINT_PROP(sharedMemPerBlockOptin)
+    PRINT_PROP(sharedMemPerMultiprocessor)
+    PRINT_PROP(localL1CacheSupported)
+    PRINT_PROP(globalL1CacheSupported)
+    ENDL_
+
+    PRINT_PROP(maxThreadsPerBlock)
+    PRINT_PROP(maxThreadsPerMultiProcessor)
+    PRINT_PROP(maxBlocksPerMultiProcessor)
+    ENDL_
+
+    PRINT_PROP(regsPerMultiprocessor)
+    PRINT_PROP(regsPerBlock)
+    ENDL_
+
+    PRINT_PROP(concurrentKernels)
+    PRINT_PROP(directManagedMemAccessFromHost)
+    PRINT_PROP(hostNativeAtomicSupported)
+    ENDL_
+
+    uint64_t clock_freq_khz = prop.clockRate;
+    uint64_t cuda_cores = prop.multiProcessorCount * prop.warpSize * 4;
+    PRINT_(cuda_cores)
+
+    float fma_tflops = (2 * clock_freq_khz * cuda_cores) / 1e9f;
+    PRINT_(fma_tflops)
+}
+
+#undef PRINT_PROP
+#undef PRINT_PROP
+#undef PRINT_
