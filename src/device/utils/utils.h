@@ -5,7 +5,10 @@
 #include <time.h>
 
 #include "compare.h"
+#include "exception.h"
 #include "memory.h"
+
+namespace utils {
 
 template <typename DataType>
 void fill_zeros(DataType *ptr, unsigned int len) {
@@ -51,4 +54,6 @@ void fill_rand<double>(double *ptr, unsigned int len, const double lower, const 
 int randint_scalar(const int lower, const int upper) {
     int diff = upper - lower;
     return lower + (rand() % diff);
+}
+
 }

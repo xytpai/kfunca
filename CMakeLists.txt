@@ -5,6 +5,7 @@ set(ROOTDIR ${PROJECT_SOURCE_DIR})
 
 include_directories(${ROOTDIR}/src/device)
 include_directories(${ROOTDIR}/src/device/utils)
+include_directories(${ROOTDIR}/src/device/core)
 
 find_package(CUDA REQUIRED)
 if(CUDA_FOUND)
