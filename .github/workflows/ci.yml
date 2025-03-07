@@ -22,6 +22,7 @@ jobs:
         run: |
           set -xe
           pwd
+          conda init bash
           source /home/xytpai/.bashrc
           which conda
           conda activate ci
