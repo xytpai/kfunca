@@ -50,7 +50,7 @@ static inline size_t element_size(ScalarType t) {
     return 0;
 }
 
-std::ostream &operator<<(std::ostream &os, const ScalarType &dtype) {
+inline std::ostream &operator<<(std::ostream &os, const ScalarType &dtype) {
     os << to_string(dtype);
     return os;
 }
