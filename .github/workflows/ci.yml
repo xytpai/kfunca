@@ -22,8 +22,7 @@ jobs:
         run: |
           set -xe
           pwd
-          conda init bash
-          conda activate ci
+          source /home/xytpai/miniconda3/bin/activate ci
           which conda
           conda env list
           nvcc --version
