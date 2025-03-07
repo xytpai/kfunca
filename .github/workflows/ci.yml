@@ -25,7 +25,7 @@ jobs:
           conda init bash
           source /home/xytpai/.bashrc
           which conda
-          conda activate ci
+          source activate ci
           conda env list
           nvcc --version
           nvidia-smi
