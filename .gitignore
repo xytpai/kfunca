@@ -12,4 +12,9 @@ test.json
 *.ptx
 log
 *.so
+
+# BEGIN NOT-CLEAN-FILES (setup.py handles this marker. Do not change.)
+#
+# Below files are not deleted by "setup.py clean".
+
 test.py
