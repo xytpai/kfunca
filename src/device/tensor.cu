@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <vector>
 
 #include "tensor.h"
@@ -58,7 +59,7 @@ void print_tensor_(std::ostream &os, const Tensor &t, std::vector<int64_t> indic
     if (dim == t.dim()) {
         auto result_ = t.item(indices);
         DISPATCH_BASIC_TYPES(t.dtype(), "print_tensor_", [&]() {
-            os << *reinterpret_cast<scalar_t *>(&result_);
+            os << std::fixed << std::showpos << std::setprecision(5) << *reinterpret_cast<scalar_t *>(&result_);
         });
         return;
     }
