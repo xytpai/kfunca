@@ -114,6 +114,10 @@ public:
     int64_t shape(int d) const {
         return shape_[d];
     }
+    std::vector<int64_t> sizes() const {
+        std::vector<int64_t> vec(shape_.val, shape_.val + dim_);
+        return vec;
+    }
     int64_t stride(int d) const {
         return stride_[d];
     }
@@ -148,7 +152,7 @@ public:
         return element_size(dtype_);
     }
     void copy_from_cpu_ptr(void *ptr);
-    void copy_to_cpu_ptr(void *ptr);
+    void copy_to_cpu_ptr(void *ptr) const;
 
     std::string to_string() const {
         std::ostringstream oss;

@@ -16,7 +16,7 @@
     _(bool, Bool, __VA_ARGS__)     /* 7 */
 
 enum class ScalarType : int8_t {
-#define DEFINE_ENUM(_1, n, ...) n,
+#define DEFINE_ENUM(_, n, ...) n,
     FORALL_BASIC_SCALAR_TYPES(DEFINE_ENUM)
 #undef DEFINE_ENUM
         Undefined,

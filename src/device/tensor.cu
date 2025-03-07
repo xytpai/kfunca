@@ -16,7 +16,7 @@ void Tensor::copy_from_cpu_ptr(void *ptr) {
     l->memcpy(data_ptr(), ptr, storage_bytes(), Launcher::COPY::H2D);
 }
 
-void Tensor::copy_to_cpu_ptr(void *ptr) {
+void Tensor::copy_to_cpu_ptr(void *ptr) const {
     auto l = Launcher::GetInstance();
     l->memcpy(ptr, data_ptr(), storage_bytes(), Launcher::COPY::D2H);
 }

@@ -6,9 +6,33 @@
 
 #include "device_info.h"
 #include "tensor.h"
-#include "scalar_type.h"
 
 namespace py = pybind11;
+
+Tensor from_numpy(py::array_t<float> array, int device) {
+    py::buffer_info buf = array.request();
+    float *ptr = static_cast<float *>(buf.ptr);
+    auto output = empty(buf.shape, ScalarType::Float, device);
+    output.copy_from_cpu_ptr((void *)ptr);
+    return output;
+}
+
+py::array to_numpy(const Tensor &t) {
+#define HANDLE_DTYPE(cpp_type, scalar_type, ...)     \
+    case ScalarType::scalar_type: {                  \
+        py::array_t<cpp_type> array(t.sizes());      \
+        py::buffer_info buf = array.request();       \
+        auto ptr = static_cast<cpp_type *>(buf.ptr); \
+        t.copy_to_cpu_ptr((void *)ptr);              \
+        return array;                                \
+    } break;
+    switch (t.dtype()) {
+        FORALL_BASIC_SCALAR_TYPES(HANDLE_DTYPE)
+    default:
+        throw std::runtime_error("Unsupported dtype in to_numpy()");
+    }
+#undef HANDLE_DTYPE
+}
 
 PYBIND11_MODULE(kfunca, m) {
     m.def("device_info", &device_info);
@@ -25,6 +49,8 @@ PYBIND11_MODULE(kfunca, m) {
     m.def("empty", [](std::vector<int64_t> shape, ScalarType dtype, int device) {
         return empty(shape, dtype, device);
     });
+    m.def("from_numpy", from_numpy);
+    m.def("to_numpy", to_numpy);
     m.def("zeros", &zeros);
     py::class_<Tensor>(m, "tensor")
         .def("__repr__", &Tensor::to_string)
@@ -36,25 +62,15 @@ PYBIND11_MODULE(kfunca, m) {
         .def("dtype", &Tensor::dtype)
         .def("item", [](Tensor &self, std::vector<int64_t> indices) -> py::object {
             auto data = self.item(indices);
+#define HANDLE_DTYPE(cpp_type, scalar_type, ...)               \
+    case ScalarType::scalar_type: {                            \
+        return py::cast(*reinterpret_cast<cpp_type *>(&data)); \
+    } break;
             switch (self.dtype()) {
-            case ScalarType::Byte:
-                return py::cast(*reinterpret_cast<unsigned char *>(&data));
-            case ScalarType::Char:
-                return py::cast(*reinterpret_cast<char *>(&data));
-            case ScalarType::Short:
-                return py::cast(*reinterpret_cast<short *>(&data));
-            case ScalarType::Int:
-                return py::cast(*reinterpret_cast<int *>(&data));
-            case ScalarType::Long:
-                return py::cast(*reinterpret_cast<long *>(&data));
-            case ScalarType::Float:
-                return py::cast(*reinterpret_cast<float *>(&data));
-            case ScalarType::Double:
-                return py::cast(*reinterpret_cast<double *>(&data));
-            case ScalarType::Bool:
-                return py::cast(*reinterpret_cast<bool *>(&data));
+                FORALL_BASIC_SCALAR_TYPES(HANDLE_DTYPE)
             default:
                 return py::none();
             }
+#undef HANDLE_DTYPE
         });
 }
