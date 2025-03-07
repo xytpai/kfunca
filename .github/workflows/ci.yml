@@ -23,6 +23,7 @@ jobs:
           set -xe
           pwd
           source /home/xytpai/.bashrc
+          which conda
           conda activate ci
           conda env list
           nvcc --version
