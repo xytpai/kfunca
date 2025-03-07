@@ -22,10 +22,7 @@ jobs:
         run: |
           set -xe
           pwd
-          conda init bash
-          source /home/xytpai/.bashrc
           which conda
-          source activate ci
           conda env list
           nvcc --version
           nvidia-smi
