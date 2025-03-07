@@ -27,6 +27,7 @@ jobs:
           conda env list
           nvcc --version
           nvidia-smi
+          pip install -r requirements.txt
           python setup.py develop
           which python
           python -c "import kfunca; print(kfunca.__file__)"
