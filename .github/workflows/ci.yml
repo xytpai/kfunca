@@ -22,8 +22,11 @@ jobs:
         run: |
           set -xe
           pwd
+          conda activate ci
+          conda env list
           nvcc --version
           nvidia-smi
           python setup.py develop
           which python
+          python -c "import kfunca; print(kfunca.__file__)"
           python -c "import kfunca; kfunca.device_info()"
