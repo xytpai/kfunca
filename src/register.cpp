@@ -6,6 +6,7 @@
 
 #include "device_info.h"
 #include "tensor.h"
+#include "op_binary.h"
 
 namespace py = pybind11;
 
@@ -73,4 +74,5 @@ PYBIND11_MODULE(kfunca, m) {
             }
 #undef HANDLE_DTYPE
         });
+    m.def("add", add);
 }
