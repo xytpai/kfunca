@@ -94,7 +94,7 @@ public:
 #define M_UNLIKELY(expr) (expr)
 #endif
 
-void check_fail_(
+inline void check_fail_(
     const char *func,
     const char *file,
     uint32_t line,
@@ -103,7 +103,7 @@ void check_fail_(
     throw Error(func, file, line, cond, msg, "");
 }
 
-void check_fail_(
+inline void check_fail_(
     const char *func,
     const char *file,
     uint32_t line,
@@ -113,18 +113,18 @@ void check_fail_(
 }
 
 template <typename... Args>
-decltype(auto) msg_impl(const char *, const Args &...args) {
+inline decltype(auto) msg_impl(const char *, const Args &...args) {
     return str(args...);
 }
 
+} // namespace utils
+
 #define CHECK_FAIL(cond, ...)                               \
     if (M_UNLIKELY(!(cond))) {                              \
-        check_fail_(                                        \
+        utils::check_fail_(                                 \
             __func__,                                       \
             __FILE__,                                       \
             static_cast<uint32_t>(__LINE__),                \
             "Expected " #cond " to be true, but got false", \
-            msg_impl("", ##__VA_ARGS__));                   \
+            utils::msg_impl("", ##__VA_ARGS__));            \
     }
-
-} // namespace utils
