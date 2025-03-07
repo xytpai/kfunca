@@ -33,5 +33,28 @@ PYBIND11_MODULE(kfunca, m) {
         .def("dim", &Tensor::dim)
         .def("device", &Tensor::device)
         .def("shape", &Tensor::shape)
-        .def("dtype", &Tensor::dtype);
+        .def("dtype", &Tensor::dtype)
+        .def("item", [](Tensor &self, std::vector<int64_t> indices) -> py::object {
+            auto data = self.item(indices);
+            switch (self.dtype()) {
+            case ScalarType::Byte:
+                return py::cast(*reinterpret_cast<unsigned char *>(&data));
+            case ScalarType::Char:
+                return py::cast(*reinterpret_cast<char *>(&data));
+            case ScalarType::Short:
+                return py::cast(*reinterpret_cast<short *>(&data));
+            case ScalarType::Int:
+                return py::cast(*reinterpret_cast<int *>(&data));
+            case ScalarType::Long:
+                return py::cast(*reinterpret_cast<long *>(&data));
+            case ScalarType::Float:
+                return py::cast(*reinterpret_cast<float *>(&data));
+            case ScalarType::Double:
+                return py::cast(*reinterpret_cast<double *>(&data));
+            case ScalarType::Bool:
+                return py::cast(*reinterpret_cast<bool *>(&data));
+            default:
+                return py::none();
+            }
+        });
 }

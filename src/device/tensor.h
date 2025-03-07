@@ -32,7 +32,7 @@ struct d_array {
 };
 
 typedef d_array<int64_t, MAX_TENSOR_DIMS> dim_t;
-using buffer_any = d_array<char, 256>;
+using any_t = d_array<char, 256>;
 
 class Tensor {
     int dim_;
@@ -125,7 +125,7 @@ public:
         }
         return flat_index;
     }
-    buffer_any item(const std::vector<int64_t> &indices) const;
+    any_t item(const std::vector<int64_t> &indices) const;
     void *data_ptr() const {
         return storage_.get()->data_ptr();
     }

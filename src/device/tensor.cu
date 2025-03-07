@@ -21,10 +21,10 @@ void Tensor::copy_to_cpu_ptr(void *ptr) {
     l->memcpy(ptr, data_ptr(), storage_bytes(), Launcher::COPY::D2H);
 }
 
-buffer_any Tensor::item(const std::vector<int64_t> &indices) const {
+any_t Tensor::item(const std::vector<int64_t> &indices) const {
     auto l = Launcher::GetInstance();
     auto offset_ = offset(indices);
-    buffer_any buffer;
+    any_t buffer;
     DISPATCH_BASIC_TYPES(dtype(), "Tensor::item", [&]() {
         l->memcpy(
             (void *)(buffer.val),
