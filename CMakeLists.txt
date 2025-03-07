@@ -4,6 +4,7 @@ project(kfunca)
 set(ROOTDIR ${PROJECT_SOURCE_DIR})
 
 include_directories(${ROOTDIR}/src/device)
+include_directories(${ROOTDIR}/src/device/include)
 include_directories(${ROOTDIR}/src/device/utils)
 include_directories(${ROOTDIR}/src/device/utils/memory)
 
@@ -17,8 +18,13 @@ if(CUDA_FOUND)
     add_library(kfunca_device SHARED ${KERNEL_SRCS})
 endif(CUDA_FOUND)
 
+include_directories(${ROOTDIR}/src/core)
+include_directories(${ROOTDIR}/src/core/include)
+file(GLOB CORE_SRCS "src/core/*.cpp")
+add_library(kfunca_core SHARED ${CORE_SRCS})
+
 message(pybind11_DIR)
 find_package(pybind11 REQUIRED)
 
 pybind11_add_module(kfunca src/register.cpp)
-target_link_libraries(kfunca PRIVATE kfunca_device)
+target_link_libraries(kfunca PRIVATE kfunca_device kfunca_core)

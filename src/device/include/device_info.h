@@ -2,4 +2,4 @@
 
 #include "export.h"
 
-DEVICE_EXPORT void device_info();
+void device_info();

@@ -22,8 +22,14 @@ jobs:
         run: |
           set -xe
           pwd
+          source /home/xytpai/miniconda3/bin/activate ci
+          which conda
+          conda env list
           nvcc --version
           nvidia-smi
+          pip install -r requirements.txt
           python setup.py develop
           which python
+          python -c "import kfunca; print(kfunca.__file__)"
           python -c "import kfunca; kfunca.device_info()"
+          pytest -sv test/test_tensor.py

@@ -8,30 +8,26 @@
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
 #include "scalar_type.h"
-#include "launcher.h"
+#include "copy_engine.h"
 
 using namespace utils::memory;
 
 void Tensor::copy_from_cpu_ptr(void *ptr) {
-    auto l = Launcher::GetInstance();
-    l->memcpy(data_ptr(), ptr, storage_bytes(), Launcher::COPY::H2D);
+    dmemcpy_h2d(data_ptr(), ptr, storage_bytes());
 }
 
 void Tensor::copy_to_cpu_ptr(void *ptr) const {
-    auto l = Launcher::GetInstance();
-    l->memcpy(ptr, data_ptr(), storage_bytes(), Launcher::COPY::D2H);
+    dmemcpy_d2h(ptr, data_ptr(), storage_bytes());
 }
 
 any_t Tensor::item(const std::vector<int64_t> &indices) const {
-    auto l = Launcher::GetInstance();
     auto offset_ = offset(indices);
     any_t buffer;
     DISPATCH_BASIC_TYPES(dtype(), "Tensor::item", [&]() {
-        l->memcpy(
+        dmemcpy_d2h(
             (void *)(buffer.val),
             (void *)((char *)data_ptr() + offset_ * sizeof(scalar_t)),
-            sizeof(scalar_t),
-            Launcher::COPY::D2H);
+            sizeof(scalar_t));
     });
     return buffer;
 }
@@ -51,7 +47,7 @@ Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool invers
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device) {
     Tensor output(shape, dtype);
     output.new_storage_(device);
-    Launcher::GetInstance()->memset(output.data_ptr(), 0, output.storage_bytes());
+    dmemset_zeros(output.data_ptr(), output.storage_bytes());
     return output;
 }
 
