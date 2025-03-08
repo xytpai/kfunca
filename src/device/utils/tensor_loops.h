@@ -42,7 +42,7 @@ struct needs_dynamic_casting<func_t, 0> {
 };
 
 template <class F, class Tuple>
-HOST_DEVICE_INLINE constexpr decltype(auto) pmkl_loops_apply(F &&f, Tuple &&t) {
+HOST_DEVICE_INLINE constexpr decltype(auto) loops_apply(F &&f, Tuple &&t) {
     return std::apply(std::forward<F>(f), std::forward<Tuple>(t));
 }
 
@@ -57,7 +57,7 @@ DEVICE_INLINE void elementwise_kernel_helper(func_t f, policy_t policy) {
 #pragma unroll
     for (int i = 0; i < THREAD_WORK_SIZE; i++) {
         if (policy.check_inbounds(i)) {
-            results[i] = pmkl_loops_apply(f, args[i]);
+            results[i] = loops_apply(f, args[i]);
         }
     }
     policy.store(results);
@@ -175,8 +175,9 @@ template <int vec_size, typename func_t>
 struct LegacyElementwiseKernel {
     DEVICE void operator()(ITEM &item) const {
         int tid = item.thread_idx_x();
-        int idx = block_work_size_ * item.block_idx_x() + tid;
         int block_size = item.thread_range_x();
+        int block_work_size = vec_size * block_size;
+        int idx = block_work_size * item.block_idx_x() + tid;
 #pragma unroll
         for (int i = 0; i < vec_size; i++) {
             if (idx < N_) {
@@ -185,18 +186,17 @@ struct LegacyElementwiseKernel {
             }
         }
     }
-    LegacyElementwiseKernel(int N, const func_t &f, int block_work_size) :
-        N_(N), f_(f), block_work_size_(block_work_size) {
+    LegacyElementwiseKernel(int N, func_t f) :
+        N_(N), f_(f) {
     }
 
 private:
     int N_;
-    const func_t &f_;
-    int block_work_size_;
+    func_t f_;
 };
 
 template <int vec_size, typename func_t>
-static void launch_legacy_kernel(int N, const func_t &f) {
+static void launch_legacy_kernel(int N, func_t f) {
     CHECK_FAIL(N >= 0 && N <= std::numeric_limits<int32_t>::max());
     if (N == 0) {
         return;
@@ -204,7 +204,7 @@ static void launch_legacy_kernel(int N, const func_t &f) {
     auto l = Launcher::GetInstance();
     int block_size = l->work_size_for_loops();
     int block_work_size = vec_size * block_size;
-    auto fn = LegacyElementwiseKernel<vec_size, func_t>(N, f, block_work_size);
+    auto fn = LegacyElementwiseKernel<vec_size, func_t>(N, f);
     l->submit(
         0, {(N + block_work_size - 1) / block_work_size}, {block_size}, fn);
 }
@@ -263,14 +263,14 @@ struct LegacyKernelNoCastFunctor {
         arg0_t *out = (arg0_t *)(data_[0] + offsets[0]);
         *out = invoke(f_, &data_.val[1], &offsets.val[1], 1);
     }
-    LegacyKernelNoCastFunctor(offset_calc_t offset_calc, data_t data, const func_t &f) :
+    LegacyKernelNoCastFunctor(offset_calc_t offset_calc, data_t data, func_t f) :
         offset_calc_(offset_calc), data_(data), f_(f) {
     }
 
 private:
     offset_calc_t offset_calc_;
     data_t data_;
-    const func_t &f_;
+    func_t f_;
 };
 
 template <typename offset_calc_t, typename arg0_t, typename data_t, typename func_t, typename dtypes_t>
