@@ -301,3 +301,7 @@ std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {
     os << ",\n\tnoutputs=" << iter.noutputs() << ")";
     return os;
 }
+
+ScalarType TensorIterator::compute_common_dtype() {
+    return common_dtype_;
+}

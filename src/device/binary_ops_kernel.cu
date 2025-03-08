@@ -1,4 +1,3 @@
-#include "tensor.h"
 #include "tensor_iterator.h"
 #include "tensor_loops.h"
 #include "scalar_type.h"
@@ -10,11 +9,8 @@ struct AddFunctor {
     }
 };
 
-Tensor add(Tensor &left, Tensor &right) {
-    Tensor out;
-    auto iter = TensorIterator().add_output(out).add_input(left).add_input(right).build_for_loops();
-    DISPATCH_BASIC_TYPES(out.dtype(), "add", [&]() {
+void add_kernel(TensorIterator &iter) {
+    DISPATCH_BASIC_TYPES(iter.dtype(), "add_kernel", [&]() {
         gpu_kernel(iter, AddFunctor<scalar_t>());
     });
-    return out;
 }

@@ -6,7 +6,7 @@
 
 #include "device_info.h"
 #include "tensor.h"
-#include "op_binary.h"
+#include "binary_ops.h"
 
 namespace py = pybind11;
 

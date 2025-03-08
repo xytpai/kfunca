@@ -31,6 +31,7 @@ private:
     bool accumulate_ = false;
     bool final_output_ = true;
     bool is_reduction_ = false;
+    ScalarType common_dtype_ = ScalarType::Undefined;
 
     bool check_and_compute_dim();
     void compute_shape();
@@ -70,6 +71,15 @@ public:
     }
     const Tensor &tensor(int arg) const {
         return *tensors_[arg];
+    }
+
+    ScalarType compute_common_dtype();
+
+    ScalarType common_dtype() const {
+        CHECK_FAIL(
+            common_dtype_ != ScalarType::Undefined,
+            "Queried for invalid common dtype!");
+        return common_dtype_;
     }
 
     TensorIterator &build_for_loops() {
