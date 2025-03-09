@@ -8,7 +8,7 @@
 #include <vector>
 #include <ctime>
 
-#include "utils.h"
+#include "exception.h"
 
 #ifndef HOST_DEVICE
 #define HOST_DEVICE __host__ __device__

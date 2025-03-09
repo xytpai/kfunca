@@ -21,6 +21,8 @@ endif(CUDA_FOUND)
 
 include_directories(${ROOTDIR}/src/core)
 include_directories(${ROOTDIR}/src/core/include)
+include_directories(${ROOTDIR}/src/core/utils)
+include_directories(${ROOTDIR}/src/core/utils/memory)
 file(GLOB CORE_SRCS "src/core/*.cpp")
 add_library(kfunca_core SHARED ${CORE_SRCS})
 
