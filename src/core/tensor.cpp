@@ -63,13 +63,13 @@ void print_tensor_(std::ostream &os, const Tensor &t, std::vector<int64_t> indic
     for (int i = -1; i < dim; i++) os << "  ";
     os << "[";
     int64_t ii;
-    for (ii = 0; ii < std::min<int64_t>(t.shape(dim), 20); ii++) {
+    for (ii = 0; ii < std::min<int64_t>(t.shape(dim), 12); ii++) {
         if (ii > 0) os << ", ";
         indices.push_back(ii);
         print_tensor_(os, t, indices, dim + 1);
         indices.pop_back();
     }
-    if (t.shape(dim) != 20 && ii == 20) {
+    if (t.shape(dim) != 12 && ii == 12) {
         os << ", ";
         if (dim < t.dim() - 1) {
             os << "\n";
