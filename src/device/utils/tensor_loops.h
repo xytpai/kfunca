@@ -116,7 +116,7 @@ struct UnrollElementwiseKernel {
                                                                                                   item.thread_idx_x(), item.block_idx_x(), item.thread_range_x());
         elementwise_kernel_helper<THREAD_WORK_SIZE>(f_, policy);
     }
-    UnrollElementwiseKernel(int N, const func_t &f, array_t data,
+    UnrollElementwiseKernel(int N, func_t f, array_t data,
                             inp_calc_t ic, out_calc_t oc, loader_t ld, storer_t st, int block_work_size) :
         N_(N),
         f_(f), data_(data), ic_(ic), oc_(oc), ld_(ld), st_(st), block_work_size_(block_work_size) {
@@ -124,7 +124,7 @@ struct UnrollElementwiseKernel {
 
 private:
     int N_;
-    const func_t &f_;
+    func_t f_;
     array_t data_;
     inp_calc_t ic_;
     out_calc_t oc_;
@@ -281,14 +281,14 @@ struct LegacyKernelCastFunctor {
         arg0_t result = invoke(f_, &data_.val[1], &offsets.val[1], &dtypes_.val[1], 1);
         cast_and_store<arg0_t>(dtypes_[0], out, result);
     }
-    LegacyKernelCastFunctor(offset_calc_t offset_calc, data_t data, const func_t &f, dtypes_t dtypes) :
+    LegacyKernelCastFunctor(offset_calc_t offset_calc, data_t data, func_t f, dtypes_t dtypes) :
         offset_calc_(offset_calc), data_(data), f_(f), dtypes_(dtypes) {
     }
 
 private:
     offset_calc_t offset_calc_;
     data_t data_;
-    const func_t &f_;
+    func_t f_;
     dtypes_t dtypes_;
 };
 

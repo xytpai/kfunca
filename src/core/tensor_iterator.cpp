@@ -116,8 +116,8 @@ void TensorIterator::reorder_dimensions() {
     auto should_swap = [&](size_t dim0, size_t dim1) {
         for (int arg = 0; arg < num_tensors_; ++arg) {
             if (!tensors_[arg]->defined()) continue;
-            int64_t stride0 = tensors_[arg]->stride(dim0);
-            int64_t stride1 = tensors_[arg]->stride(dim1);
+            int64_t stride0 = stride_bytes_[arg][dim0];
+            int64_t stride1 = stride_bytes_[arg][dim1];
             if (stride0 == 0 || stride1 == 0) {
                 // move on to the next input if one of the dimensions is broadcasted
                 continue;
@@ -303,7 +303,7 @@ void TensorIterator::narrow(int dim, int64_t start, int64_t size) {
 
 std::unique_ptr<TensorIterator> TensorIterator::split(int dim) {
     CHECK_FAIL(dim >= 0 && dim < ndim() && shape()[dim] >= 2);
-    std::unique_ptr<TensorIterator> copy(new TensorIterator(*this));
+    auto copy = std::make_unique<TensorIterator>(*this);
     bool overlaps = is_dim_reduced(dim);
     auto copy_size = shape_[dim] / 2;
     auto this_size = shape_[dim] - copy_size;
