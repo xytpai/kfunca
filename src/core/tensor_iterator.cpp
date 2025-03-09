@@ -36,6 +36,41 @@ void TensorIterator::compute_shape() {
     }
 }
 
+ScalarType update_common_dtype(ScalarType a, ScalarType b) {
+    if (is_floating_type(a) && is_floating_type(b)) {
+        return a >= b ? a : b;
+    } else if (is_floating_type(a) || is_floating_type(b)) {
+        return is_floating_type(a) ? a : b;
+    } else if (is_unsigned_int_type(a) && is_unsigned_int_type(b)) {
+        return a >= b ? a : b;
+    } else if (is_unsigned_int_type(a) || is_unsigned_int_type(b)) {
+        return is_unsigned_int_type(a) ? b : a;
+    } else {
+        return a >= b ? a : b;
+    }
+}
+
+void TensorIterator::compute_types() {
+    int common_device = -1;
+    common_dtype_ = ScalarType::Undefined;
+    ScalarType output_dtype = ScalarType::Undefined;
+    for (int i = num_outputs_; i < num_tensors_; i++) {
+        auto tensor_i = tensors_[i];
+        if (common_device == -1 && tensor_i->device() >= 0) {
+            common_device = tensor_i->device();
+        } else {
+            CHECK_FAIL(tensor_i->device() == common_device, "All input tensors should in the same device");
+        }
+        if (tensor_i->dtype() != common_dtype_) {
+            if (common_dtype_ == ScalarType::Undefined) {
+                common_dtype_ = tensor_i->dtype();
+            } else {
+                common_dtype_ = update_common_dtype(common_dtype_, tensor_i->dtype());
+            }
+        }
+    }
+}
+
 void TensorIterator::compute_strides() {
     for (int id = 0; id < num_tensors_; ++id) {
         auto t = tensors_[id];
@@ -123,7 +158,7 @@ void TensorIterator::reorder_dimensions() {
 
 void TensorIterator::allocate_outputs() {
     auto device = tensors_[num_outputs_]->device();
-    auto dtype = tensors_[num_outputs_]->dtype();
+    auto dtype = common_dtype_;
     for (int i = 0; i < num_outputs_; ++i) {
         if (!tensors_[i]->defined()) {
             if (!is_reordered_) {
@@ -298,10 +333,7 @@ std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {
     for (int i = 0; i < iter.dim(); ++i)
         os << iter.perm(i) << ",";
     os << "\b],\n\tdim=" << iter.dim() << ",\n\tninputs=" << iter.ninputs();
-    os << ",\n\tnoutputs=" << iter.noutputs() << ")";
+    os << ",\n\tnoutputs=" << iter.noutputs();
+    os << ",\n\tcommon_dtype=" << iter.common_dtype() << ")";
     return os;
-}
-
-ScalarType TensorIterator::compute_common_dtype() {
-    return common_dtype_;
 }

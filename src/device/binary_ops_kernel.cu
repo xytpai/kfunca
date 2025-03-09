@@ -10,7 +10,7 @@ struct AddFunctor {
 };
 
 void add_kernel(TensorIterator &iter) {
-    DISPATCH_BASIC_TYPES(iter.dtype(), "add_kernel", [&]() {
+    DISPATCH_BASIC_TYPES(iter.common_dtype(), "add_kernel", [&]() {
         gpu_kernel(iter, AddFunctor<scalar_t>());
     });
 }

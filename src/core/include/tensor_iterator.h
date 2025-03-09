@@ -35,6 +35,7 @@ private:
 
     bool check_and_compute_dim();
     void compute_shape();
+    void compute_types();
     void compute_strides();
     void permute_dimensions();
     void reorder_dimensions();
@@ -73,8 +74,6 @@ public:
         return *tensors_[arg];
     }
 
-    ScalarType compute_common_dtype();
-
     ScalarType common_dtype() const {
         CHECK_FAIL(
             common_dtype_ != ScalarType::Undefined,
@@ -85,6 +84,7 @@ public:
     TensorIterator &build_for_loops() {
         CHECK_FAIL(check_and_compute_dim());
         compute_shape();
+        compute_types();
         compute_strides();
         reorder_dimensions();
         allocate_outputs();

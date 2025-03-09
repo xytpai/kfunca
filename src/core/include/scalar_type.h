@@ -6,14 +6,14 @@
 #include "exception.h"
 
 #define FORALL_BASIC_SCALAR_TYPES(_, ...)  \
-    _(uint8_t, Byte, __VA_ARGS__)  /* 0 */ \
-    _(int8_t, Char, __VA_ARGS__)   /* 1 */ \
-    _(int16_t, Short, __VA_ARGS__) /* 2 */ \
-    _(int, Int, __VA_ARGS__)       /* 3 */ \
-    _(int64_t, Long, __VA_ARGS__)  /* 4 */ \
-    _(float, Float, __VA_ARGS__)   /* 5 */ \
-    _(double, Double, __VA_ARGS__) /* 6 */ \
-    _(bool, Bool, __VA_ARGS__)     /* 7 */
+    _(bool, Bool, __VA_ARGS__)     /* 0 */ \
+    _(uint8_t, Byte, __VA_ARGS__)  /* 1 */ \
+    _(int8_t, Char, __VA_ARGS__)   /* 2 */ \
+    _(int16_t, Short, __VA_ARGS__) /* 3 */ \
+    _(int, Int, __VA_ARGS__)       /* 4 */ \
+    _(int64_t, Long, __VA_ARGS__)  /* 5 */ \
+    _(float, Float, __VA_ARGS__)   /* 6 */ \
+    _(double, Double, __VA_ARGS__) /* 7 */
 
 enum class ScalarType : int8_t {
 #define DEFINE_ENUM(_, n, ...) n,
@@ -90,3 +90,11 @@ FORALL_BASIC_SCALAR_TYPES(SPECIALIZE_CppTypeToScalarType)
     }()
 
 #undef SPECIALIZE_CppTypeToScalarType
+
+inline bool is_floating_type(ScalarType t) {
+    return t == ScalarType::Double || t == ScalarType::Float;
+}
+
+inline bool is_unsigned_int_type(ScalarType t) {
+    return t == ScalarType::Byte || t == ScalarType::Bool;
+}
