@@ -19,7 +19,7 @@ class TensorIterator final {
 
 private:
     Tensor *tensors_[MAX_TENSORS];
-    size_t ptr_offsets_[MAX_TENSORS];
+    void *data_ptr_[MAX_TENSORS];
     int64_t shape_[MAX_TENSOR_DIMS];
     int64_t stride_bytes_[MAX_TENSORS][MAX_TENSOR_DIMS];
     int64_t perm_[MAX_TENSOR_DIMS];
@@ -47,13 +47,11 @@ public:
     TensorIterator() {
     }
     TensorIterator &add_output(Tensor &output) {
-        ptr_offsets_[num_tensors_] = 0;
         tensors_[num_tensors_++] = &output;
         num_outputs_++;
         return *this;
     }
     TensorIterator &add_input(Tensor &input) {
-        ptr_offsets_[num_tensors_] = 0;
         tensors_[num_tensors_++] = &input;
         num_inputs_++;
         return *this;
@@ -81,6 +79,16 @@ public:
         return common_dtype_;
     }
 
+    void update_data_pointers() {
+        for (int i = 0; i < MAX_TENSORS; i++) {
+            if (i < num_tensors_) {
+                data_ptr_[i] = tensors_[i]->data_ptr();
+            } else {
+                data_ptr_[i] = nullptr;
+            }
+        }
+    }
+
     TensorIterator &build_for_loops() {
         CHECK_FAIL(check_and_compute_dim());
         compute_shape();
@@ -89,6 +97,7 @@ public:
         reorder_dimensions();
         allocate_outputs();
         coalesce_dimensions();
+        update_data_pointers();
         return *this;
     }
 
@@ -157,7 +166,7 @@ public:
         return tensors_[arg]->dtype();
     }
     void *data_ptr(int arg) const {
-        return (void *)((char *)tensors_[arg]->data_ptr() + ptr_offsets_[arg]);
+        return data_ptr_[arg];
     }
     int64_t element_size_in_bytes(int arg) const {
         return tensors_[arg]->element_size_in_bytes();

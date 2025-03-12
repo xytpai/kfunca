@@ -294,7 +294,7 @@ void TensorIterator::narrow(int dim, int64_t start, int64_t size) {
     CHECK_FAIL(dim < ndim() && size >= 1);
     shape_[dim] = size;
     for (int i = 0; i < num_tensors_; ++i) {
-        ptr_offsets_[i] += stride_bytes_[i][dim] * start;
+        data_ptr_[i] = (char *)data_ptr_[i] + stride_bytes_[i][dim] * start;
     }
     if (size == 1 && !is_reduction_) {
         coalesce_dimensions();
@@ -328,6 +328,9 @@ std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {
         for (int j = 0; j < iter.dim(); ++j)
             os << iter.stride_bytes(i, j) << ",";
         os << "\b],\n\t";
+    }
+    for (int i = 0; i < iter.ntensors(); ++i) {
+        os << "data_ptr_" << i << "=" << iter.data_ptr(i) << ", \n\t";
     }
     os << "perm=[";
     for (int i = 0; i < iter.dim(); ++i)
