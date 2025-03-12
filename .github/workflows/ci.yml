@@ -32,4 +32,4 @@ jobs:
           which python
           python -c "import kfunca; print(kfunca.__file__)"
           python -c "import kfunca; kfunca.device_info()"
-          pytest -sv test/test_tensor.py
+          pytest -sv test/test_*.py

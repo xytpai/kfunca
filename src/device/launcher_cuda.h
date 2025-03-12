@@ -8,7 +8,7 @@
 #include <vector>
 #include <ctime>
 
-#include "utils.h"
+#include "exception.h"
 
 #ifndef HOST_DEVICE
 #define HOST_DEVICE __host__ __device__
@@ -150,7 +150,7 @@ public:
         if (ptr) CHECK_FAIL(cudaFree(ptr) == 0);
     }
 
-    void memcpy(void *dst, const void *src, unsigned int len, COPY dir, bool sync = true) {
+    void memcpy(void *dst, const void *src, size_t len, COPY dir, bool sync = true) {
         bool need_new_stream = stream_ != 0 ? false : true;
         if (need_new_stream) stream_begin();
         switch (dir) {

@@ -6,15 +6,22 @@
 
 #include "device_info.h"
 #include "tensor.h"
+#include "binary_ops.h"
 
 namespace py = pybind11;
 
-Tensor from_numpy(py::array_t<float> array, int device) {
+Tensor from_numpy(py::array array, int device) {
     py::buffer_info buf = array.request();
-    float *ptr = static_cast<float *>(buf.ptr);
-    auto output = empty(buf.shape, ScalarType::Float, device);
-    output.copy_from_cpu_ptr((void *)ptr);
-    return output;
+#define HANDLE_DTYPE(cpp_type, scalar_type, ...)                         \
+    if (buf.format == py::format_descriptor<cpp_type>::format()) {       \
+        auto ptr = static_cast<cpp_type *>(buf.ptr);                     \
+        auto output = empty(buf.shape, ScalarType::scalar_type, device); \
+        output.copy_from_cpu_ptr((void *)ptr);                           \
+        return output;                                                   \
+    }
+    FORALL_BASIC_SCALAR_TYPES(HANDLE_DTYPE)
+    throw std::runtime_error("Unsupported dtype in from_numpy()");
+#undef HANDLE_DTYPE
 }
 
 py::array to_numpy(const Tensor &t) {
@@ -73,4 +80,5 @@ PYBIND11_MODULE(kfunca, m) {
             }
 #undef HANDLE_DTYPE
         });
+    m.def("add", add);
 }
