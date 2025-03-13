@@ -79,6 +79,9 @@ PYBIND11_MODULE(kfunca, m) {
                 return py::none();
             }
 #undef HANDLE_DTYPE
-        });
-    m.def("add", add);
+        })
+        .def("__add__", &Tensor::operator+)
+        .def("__sub__", &Tensor::operator-)
+        .def("__mul__", &Tensor::operator*)
+        .def("__truediv__", &Tensor::operator/);
 }

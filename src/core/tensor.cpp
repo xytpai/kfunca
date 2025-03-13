@@ -9,6 +9,7 @@
 #include "intrusive_ptr.h"
 #include "scalar_type.h"
 #include "copy_engine.h"
+#include "binary_ops.h"
 
 using namespace utils::memory;
 
@@ -98,4 +99,20 @@ std::ostream &operator<<(std::ostream &os, const Tensor &t) {
     print_tensor_(os, t);
     os << "\n}";
     return os;
+}
+
+Tensor Tensor::operator+(const Tensor &other) const {
+    return gpu::add(*this, other);
+}
+
+Tensor Tensor::operator-(const Tensor &other) const {
+    return gpu::sub(*this, other);
+}
+
+Tensor Tensor::operator*(const Tensor &other) const {
+    return gpu::mul(*this, other);
+}
+
+Tensor Tensor::operator/(const Tensor &other) const {
+    return gpu::div(*this, other);
 }

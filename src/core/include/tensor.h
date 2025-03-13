@@ -159,4 +159,9 @@ public:
         oss << *this;
         return oss.str();
     }
+
+    Tensor operator+(const Tensor &other) const;
+    Tensor operator-(const Tensor &other) const;
+    Tensor operator*(const Tensor &other) const;
+    Tensor operator/(const Tensor &other) const;
 };
