@@ -293,6 +293,7 @@ bool TensorIterator::is_dim_reduced(int dim) const {
 void TensorIterator::narrow(int dim, int64_t start, int64_t size) {
     CHECK_FAIL(dim < ndim() && size >= 1);
     shape_[dim] = size;
+    view_offsets_[dim] += start;
     for (int i = 0; i < num_tensors_; ++i) {
         data_ptr_[i] = (char *)data_ptr_[i] + stride_bytes_[i][dim] * start;
     }
@@ -316,6 +317,16 @@ std::unique_ptr<TensorIterator> TensorIterator::split(int dim) {
 
 SplitUntil32Bit TensorIterator::with_32bit_indexing() const {
     return SplitUntil32Bit(*this);
+}
+
+int64_t TensorIterator::num_output_elements() const {
+    int64_t elem = 1;
+    for (int dim = 0; dim < ndim(); dim++) {
+        if (stride_bytes_[0][dim] != 0 || shape_[dim] == 0) {
+            elem *= shape_[dim];
+        }
+    }
+    return elem;
 }
 
 std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {
