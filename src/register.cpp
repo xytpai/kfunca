@@ -60,6 +60,8 @@ PYBIND11_MODULE(kfunca, m) {
     m.def("to_numpy", to_numpy);
     m.def("zeros", &zeros);
     py::class_<Tensor>(m, "tensor")
+        .def("__copy__", [](const Tensor &self) { return Tensor(self); })
+        .def("__deepcopy__", [](const Tensor &self, py::dict) { return Tensor(self); })
         .def("__repr__", &Tensor::to_string)
         .def("defined", &Tensor::defined)
         .def("numel", &Tensor::numel)
@@ -80,6 +82,10 @@ PYBIND11_MODULE(kfunca, m) {
             }
 #undef HANDLE_DTYPE
         })
+        .def("data_ptr", [](Tensor &self) -> uintptr_t {
+            return reinterpret_cast<uintptr_t>(self.data_ptr());
+        })
+        .def("storage_ref_count", &Tensor::storage_ref_count)
         .def("__add__", &Tensor::operator+)
         .def("__sub__", &Tensor::operator-)
         .def("__mul__", &Tensor::operator*)
