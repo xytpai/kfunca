@@ -51,8 +51,8 @@ public:
         num_outputs_++;
         return *this;
     }
-    TensorIterator &add_input(Tensor &input) {
-        tensors_[num_tensors_++] = &input;
+    TensorIterator &add_input(const Tensor &input) {
+        tensors_[num_tensors_++] = const_cast<Tensor *>(&input);
         num_inputs_++;
         return *this;
     }
