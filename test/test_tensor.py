@@ -25,6 +25,21 @@ class TestTensorImpl(object):
             out_gpu = kfunca.from_numpy(arr1, 0) + kfunca.from_numpy(arr2, 0)
             assert(np.allclose(out, kfunca.to_numpy(out_gpu)) == True)
 
+    def test_data_ptr(self):
+        import copy
+        arr_ = np.random.uniform(-10, 10, size=(3,4)).astype(np.float32)
+        arr_x = kfunca.from_numpy(arr_, 0)
+        arr_x_ref = kfunca.from_numpy(arr_, 0)
+        arr_x_ref = arr_x
+        arr_x_deep = copy.deepcopy(arr_x)
+        assert arr_x.data_ptr() == arr_x_ref.data_ptr() == arr_x_deep.data_ptr()
+        assert arr_x.storage_ref_count() == arr_x_ref.storage_ref_count() == arr_x_deep.storage_ref_count() == 2
+        del arr_x
+        assert arr_x_deep.storage_ref_count() == 2
+        assert arr_x_ref.storage_ref_count() == 2
+        del arr_x_ref
+        assert arr_x_deep.storage_ref_count() == 1
+
     def test_broadcast_basic_binary(self):
         shapes = [
             [[16, 1], [1, 6], 'easy'],
