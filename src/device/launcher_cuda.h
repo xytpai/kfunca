@@ -201,6 +201,14 @@ public:
         return device_max_thread_per_block_[current_device_];
     }
 
+    int multi_processor_count() const {
+        return device_multi_processor_count_[current_device_];
+    }
+
+    int max_threads_per_multi_processor() const {
+        return device_max_threads_per_multi_processor_[current_device_];
+    }
+
     int max_thread_per_group() const {
         return max_thread_per_block();
     }
@@ -243,6 +251,8 @@ private:
             CHECK_FAIL(cudaGetDeviceProperties(&prop, dev) == 0);
             device_names_.push_back(prop.name);
             device_max_thread_per_block_.push_back(prop.maxThreadsPerBlock);
+            device_multi_processor_count_.push_back(prop.multiProcessorCount);
+            device_max_threads_per_multi_processor_.push_back(prop.maxThreadsPerMultiProcessor);
             device_shared_memory_.push_back(prop.sharedMemPerBlock);
             device_global_memory_.push_back(prop.totalGlobalMem);
         }
@@ -273,6 +283,8 @@ private:
     int device_count_;
     std::vector<std::string> device_names_;
     std::vector<int> device_max_thread_per_block_;
+    std::vector<int> device_multi_processor_count_;
+    std::vector<int> device_max_threads_per_multi_processor_;
     std::vector<size_t> device_shared_memory_;
     std::vector<size_t> device_global_memory_;
     int current_device_;

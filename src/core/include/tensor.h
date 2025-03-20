@@ -148,6 +148,9 @@ public:
     dim_t &stride() {
         return stride_;
     }
+    dim_t &shape() {
+        return shape_;
+    }
     int64_t element_size_in_bytes() const {
         return element_size(dtype_);
     }
@@ -164,4 +167,5 @@ public:
     Tensor operator-(const Tensor &other) const;
     Tensor operator*(const Tensor &other) const;
     Tensor operator/(const Tensor &other) const;
+    Tensor sum(int64_t reduce_dim) const;
 };

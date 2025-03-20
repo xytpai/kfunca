@@ -64,10 +64,11 @@ PYBIND11_MODULE(kfunca, m) {
         .def("__deepcopy__", [](const Tensor &self, py::dict) { return Tensor(self); })
         .def("__repr__", &Tensor::to_string)
         .def("defined", &Tensor::defined)
+        .def("numpy", [](const Tensor &self) { return to_numpy(self); })
         .def("numel", &Tensor::numel)
         .def("dim", &Tensor::dim)
         .def("device", &Tensor::device)
-        .def("shape", &Tensor::shape)
+        .def("shape", [](const Tensor &self, int64_t d) { return self.shape(d); })
         .def("dtype", &Tensor::dtype)
         .def("item", [](Tensor &self, std::vector<int64_t> indices) -> py::object {
             auto data = self.item(indices);
@@ -89,5 +90,6 @@ PYBIND11_MODULE(kfunca, m) {
         .def("__add__", &Tensor::operator+)
         .def("__sub__", &Tensor::operator-)
         .def("__mul__", &Tensor::operator*)
-        .def("__truediv__", &Tensor::operator/);
+        .def("__truediv__", &Tensor::operator/)
+        .def("sum", &Tensor::sum);
 }

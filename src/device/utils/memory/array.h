@@ -59,5 +59,12 @@ struct alignas(sizeof(T) * 2) vec2 {
     }
 };
 
+template <int vec_size, typename scalar_t>
+DEVICE_INLINE aligned_array<scalar_t, vec_size> load_vector(const scalar_t *base_ptr, uint32_t offset) {
+    using vec_t = aligned_array<scalar_t, vec_size>;
+    auto *from = reinterpret_cast<const vec_t *>(base_ptr);
+    return from[offset];
+}
+
 }
 } // namespace utils::memory
