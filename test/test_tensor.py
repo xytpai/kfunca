@@ -8,8 +8,7 @@ class TestTensorImpl(object):
     def test_tensor_impl(self):
         arr = np.random.uniform(-10, 10, size=(2, 3))
         arr_gpu = kfunca.from_numpy(arr, 0)
-        arr_gpu_cpu = kfunca.to_numpy(arr_gpu)
-        assert(np.allclose(arr, arr_gpu_cpu) == True)
+        assert(np.allclose(arr, arr_gpu.numpy()) == True)
     
     def test_tensor_add(self):
         for shape in ((2,3), (1000), (12,11,3331)):
@@ -17,13 +16,13 @@ class TestTensorImpl(object):
             arr_2 = arr + arr
             arr_gpu = kfunca.from_numpy(arr, 0)
             arr_gpu_2 = arr_gpu + arr_gpu
-            arr_gpu_2_cpu = kfunca.to_numpy(arr_gpu_2)
+            arr_gpu_2_cpu = arr_gpu_2.numpy()
             assert(np.allclose(arr_2, arr_gpu_2_cpu) == True)
             arr1 = np.random.uniform(-10, 10, size=shape).astype(np.int32)
             arr2 = np.random.uniform(-10, 10, size=shape).astype(np.float32)
             out = arr1 + arr2
             out_gpu = kfunca.from_numpy(arr1, 0) + kfunca.from_numpy(arr2, 0)
-            assert(np.allclose(out, kfunca.to_numpy(out_gpu)) == True)
+            assert(np.allclose(out, out_gpu.numpy()) == True)
 
     def test_data_ptr(self):
         import copy
@@ -57,12 +56,19 @@ class TestTensorImpl(object):
                     arr2 = np.random.uniform(-10, 10, size=shape[1]).astype(np.float32)
                     out = eval("arr1 {} arr2".format(op))
                     out_gpu = eval("kfunca.from_numpy(arr1, 0) {} kfunca.from_numpy(arr2, 0)".format(op))
-                    assert(np.allclose(out, kfunca.to_numpy(out_gpu)) == True)
+                    assert(np.allclose(out, out_gpu.numpy()) == True)
                     arr1 = np.random.uniform(-10, 10, size=shape[0]).astype(np.int32)
                     arr2 = np.random.uniform(-10, 10, size=shape[1]).astype(np.float32)
                     out = eval("arr1 {} arr2".format(op))
                     out_gpu = eval("kfunca.from_numpy(arr1, 0) {} kfunca.from_numpy(arr2, 0)".format(op))
-                    assert(np.allclose(out, kfunca.to_numpy(out_gpu)) == True)
+                    assert(np.allclose(out, out_gpu.numpy()) == True)
+    
+    def test_reduce(self):
+        arr = np.random.uniform(-10, 10, size=[5,10]).astype(np.float32)
+        arr_sum = np.sum(arr, axis=1, keepdims=True)
+        arr_gpu = kfunca.from_numpy(arr, 0)
+        arr_gpu_sum = arr_gpu.sum(1)
+        assert(np.allclose(arr_sum, arr_gpu_sum.numpy()) == True)
 
 
 if __name__ == '__main__':

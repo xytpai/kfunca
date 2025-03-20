@@ -32,6 +32,7 @@ private:
     bool accumulate_ = false;
     bool final_output_ = true;
     bool is_reduction_ = false;
+    int64_t reduce_dim_ = 0;
     ScalarType common_dtype_ = ScalarType::Undefined;
 
     bool check_and_compute_dim();
@@ -41,6 +42,7 @@ private:
     void permute_dimensions();
     void reorder_dimensions();
     void allocate_outputs();
+    void allocate_reduction_outputs();
     void coalesce_dimensions();
 
 public:
@@ -80,6 +82,7 @@ public:
     }
 
     int64_t num_output_elements() const;
+    int num_reduce_dims() const;
 
     ScalarType common_dtype() const {
         CHECK_FAIL(
@@ -98,16 +101,30 @@ public:
         }
     }
 
-    TensorIterator &build_for_loops() {
+    TensorIterator &build() {
         CHECK_FAIL(check_and_compute_dim());
         compute_shape();
         compute_types();
         compute_strides();
+        if (is_reduction_) {
+            allocate_reduction_outputs();
+        }
         reorder_dimensions();
         allocate_outputs();
         coalesce_dimensions();
         update_data_pointers();
         return *this;
+    }
+
+    TensorIterator &build_for_loops() {
+        is_reduction_ = false;
+        return this->build();
+    }
+
+    TensorIterator &build_for_reduce(int64_t reduce_dim) {
+        is_reduction_ = true;
+        reduce_dim_ = reduce_dim;
+        return this->build();
     }
 
     int64_t shape(int dim) const {

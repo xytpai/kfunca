@@ -118,6 +118,13 @@ void TensorIterator::reorder_dimensions() {
             if (!tensors_[arg]->defined()) continue;
             int64_t stride0 = stride_bytes_[arg][dim0];
             int64_t stride1 = stride_bytes_[arg][dim1];
+            if (is_reduction_ && arg < num_outputs_) {
+                // move reduced dimensions to the front
+                // strides of reduced dimensions are always set to 0 by review_reduce_result
+                if ((stride0 == 0) != (stride1 == 0)) {
+                    return stride1 == 0 ? 1 : -1;
+                }
+            }
             if (stride0 == 0 || stride1 == 0) {
                 // move on to the next input if one of the dimensions is broadcasted
                 continue;
@@ -173,6 +180,27 @@ void TensorIterator::allocate_outputs() {
             for (int d = 0; d < ndim_; ++d) {
                 stride_bytes_[i][d] = stride[ndim_ - 1 - d] * element_size(dtype);
             }
+        }
+    }
+}
+
+void TensorIterator::allocate_reduction_outputs() {
+    CHECK_FAIL(is_reordered_ == false);
+    auto device = tensors_[num_outputs_]->device();
+    auto dtype = common_dtype_;
+    for (int i = 0; i < num_outputs_; ++i) {
+        if (!tensors_[i]->defined()) {
+            int64_t shape[MAX_TENSOR_DIMS];
+            for (int k = 0; k < ndim_; ++k) {
+                shape[k] = shape_[k];
+            }
+            shape[reduce_dim_] = 1;
+            *tensors_[i] = std::move(empty(shape, ndim_, dtype, device, false));
+            auto &stride = tensors_[i]->stride();
+            for (int d = 0; d < ndim_; ++d) {
+                stride_bytes_[i][d] = stride[ndim_ - 1 - d] * element_size(dtype);
+            }
+            stride_bytes_[i][reduce_dim_] = 0;
         }
     }
 }
@@ -327,6 +355,16 @@ int64_t TensorIterator::num_output_elements() const {
         }
     }
     return elem;
+}
+
+int TensorIterator::num_reduce_dims() const {
+    int count = 0;
+    for (int dim = 0; dim < ndim(); dim++) {
+        if (stride_bytes_[0][dim] == 0) {
+            count++;
+        }
+    }
+    return count;
 }
 
 std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {

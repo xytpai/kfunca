@@ -10,6 +10,7 @@
 #include "scalar_type.h"
 #include "copy_engine.h"
 #include "binary_ops.h"
+#include "reduce_ops.h"
 
 using namespace utils::memory;
 
@@ -115,4 +116,8 @@ Tensor Tensor::operator*(const Tensor &other) const {
 
 Tensor Tensor::operator/(const Tensor &other) const {
     return gpu::div(*this, other);
+}
+
+Tensor Tensor::sum(int64_t reduce_dim) const {
+    return gpu::sum(*this, reduce_dim);
 }
