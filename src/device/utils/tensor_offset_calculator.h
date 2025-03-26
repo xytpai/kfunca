@@ -56,7 +56,7 @@ struct IntDivider<unsigned int> {
     }
 
     DEVICE_INLINE unsigned int div(unsigned int n) const {
-#if defined(USE_CUDA)
+#if defined(__CUDACC__)
         unsigned int t = __umulhi(n, m1);
         return (t + n) >> shift;
 #else

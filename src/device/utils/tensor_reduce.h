@@ -7,6 +7,7 @@
 #include "function_traits.h"
 #include "tensor_iterator.h"
 #include "tensor_offset_calculator.h"
+#include "scalar_type.h"
 #include "exception.h"
 
 // returns reduced fraction numerator & denominator
@@ -113,6 +114,43 @@ func_wrapper_t<scalar_t, func_t> func_wrapper(const func_t &op) {
 template <typename T>
 struct mnt_wrapper {
     static constexpr int MAX_NUM_THREADS = 512;
+};
+
+class AccumulationBuffer {
+public:
+    AccumulationBuffer() {
+    }
+
+    AccumulationBuffer(size_t acc_t_size, size_t out_t_size, char *out_ptr, int64_t size) {
+        out_ptr_ = (char *)out_ptr;
+        if (out_t_size >= acc_t_size) {
+            // reusing output buffer for accumulation.
+            acc_ptr_ = (char *)out_ptr;
+            numerator_ = 1;
+            denominator_ = 1;
+        } else {
+            // auto &allocator = *c10::cuda::CUDACachingAllocator::get();
+            // buffer_ = allocator.allocate(size);
+            acc_ptr_ = (char *)buffer_.get();
+            numerator_ = acc_t_size;
+            denominator_ = out_t_size;
+            reduce_fraction(numerator_, denominator_);
+        }
+    }
+
+    char *get_acc_slice(char *out_ptr) {
+        if (acc_ptr_ == nullptr) {
+            return nullptr;
+        }
+        return acc_ptr_ + ((out_ptr - out_ptr_) * numerator_ / denominator_);
+    }
+
+private:
+    char *acc_ptr_ = nullptr;
+    char *out_ptr_ = nullptr;
+    size_t numerator_;
+    size_t denominator_;
+    memory::DataPtr buffer_;
 };
 
 struct ReduceConfig {
@@ -954,8 +992,16 @@ inline void gpu_reduce_kernel(TensorIterator &iter, const ops_t &ops, ident_t id
 
     using traits = function_traits<decltype(&ops_t::reduce)>;
     using arg_t = typename traits::template arg<0>::type;
+    // using arg_t = at::opmath_type<scalar_t>;
+
+    static constexpr bool is_inp_out_type_half =
+        (std::is_same_v<dtype::Half, scalar_t> && std::is_same_v<dtype::Half, out_scalar_t>);
+
+    static constexpr bool can_accumulate_in_output =
+        std::is_convertible_v<arg_t, out_scalar_t> && !is_inp_out_type_half;
 
     bool can_use_32bit_indexing = iter.can_use_32bit_indexing();
+    std::unique_ptr<AccumulationBuffer> owned_buf_ptr;
 
     if (!can_use_32bit_indexing) {
         for (auto &sub_iter : iter.with_32bit_indexing()) {
