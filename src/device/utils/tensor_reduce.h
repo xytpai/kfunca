@@ -9,6 +9,9 @@
 #include "tensor_offset_calculator.h"
 #include "scalar_type.h"
 #include "exception.h"
+#include "data_ptr.h"
+#include "intrusive_ptr.h"
+#include "tensor_storage.h"
 
 // returns reduced fraction numerator & denominator
 HOST_DEVICE static void reduce_fraction(size_t &numerator, size_t &denominator) {
@@ -130,6 +133,7 @@ public:
             denominator_ = 1;
         } else {
             // auto &allocator = *c10::cuda::CUDACachingAllocator::get();
+
             // buffer_ = allocator.allocate(size);
             acc_ptr_ = (char *)buffer_.get();
             numerator_ = acc_t_size;
