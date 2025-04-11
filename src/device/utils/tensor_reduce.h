@@ -12,6 +12,7 @@
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
 #include "tensor_storage.h"
+#include "device_allocator.h"
 
 // returns reduced fraction numerator & denominator
 HOST_DEVICE static void reduce_fraction(size_t &numerator, size_t &denominator) {
@@ -119,44 +120,6 @@ struct mnt_wrapper {
     static constexpr int MAX_NUM_THREADS = 512;
 };
 
-class AccumulationBuffer {
-public:
-    AccumulationBuffer() {
-    }
-
-    AccumulationBuffer(size_t acc_t_size, size_t out_t_size, char *out_ptr, int64_t size) {
-        out_ptr_ = (char *)out_ptr;
-        if (out_t_size >= acc_t_size) {
-            // reusing output buffer for accumulation.
-            acc_ptr_ = (char *)out_ptr;
-            numerator_ = 1;
-            denominator_ = 1;
-        } else {
-            // auto &allocator = *c10::cuda::CUDACachingAllocator::get();
-
-            // buffer_ = allocator.allocate(size);
-            acc_ptr_ = (char *)buffer_.get();
-            numerator_ = acc_t_size;
-            denominator_ = out_t_size;
-            reduce_fraction(numerator_, denominator_);
-        }
-    }
-
-    char *get_acc_slice(char *out_ptr) {
-        if (acc_ptr_ == nullptr) {
-            return nullptr;
-        }
-        return acc_ptr_ + ((out_ptr - out_ptr_) * numerator_ / denominator_);
-    }
-
-private:
-    char *acc_ptr_ = nullptr;
-    char *out_ptr_ = nullptr;
-    size_t numerator_;
-    size_t denominator_;
-    memory::DataPtr buffer_;
-};
-
 struct ReduceConfig {
     static constexpr int BLOCK_X = 0;
     static constexpr int BLOCK_Y = 1;
@@ -168,7 +131,6 @@ struct ReduceConfig {
     int element_size_bytes;
     int num_outputs;
     int num_inputs;
-
     int step_input = 1;
     int step_output = 1;
     int ctas_per_output = 1;
@@ -290,6 +252,144 @@ struct ReduceConfig {
     int values_per_thread() const {
         return div_up(num_inputs, step_input);
     }
+};
+
+template <typename arg_t, typename scalar_t, int vt0, int input_vec_size = vt0>
+ReduceConfig set_reduce_config(TensorIterator &iter) {
+    // Start by assuming that each thread handles a single output and all
+    // the inputs for that output.
+    int64_t num_outputs = iter.num_output_elements();
+    int64_t inputs_per_output = iter.numel() / num_outputs;
+    int input_index = iter.ntensors() - 1;
+
+    auto config = ReduceConfig(sizeof(arg_t), num_outputs, inputs_per_output);
+
+    int64_t dim0;
+    int64_t dim1;
+    int64_t fastest_moving_stride;
+    bool reduction_on_fastest_striding_dimension;
+
+    if (iter.ndim() > 0) {
+        // Adjust block size to map block width to fastest changing dimension of input
+        // tensor. This grants the best possible memory accessing pattern, given that
+        // for non-contiguous tensor with space in between, we cannot have perfect
+        // memory coalescing.
+        reduction_on_fastest_striding_dimension =
+            (iter.num_reduce_dims() == iter.ndim()) || (iter.strides(/*arg=*/input_index)[0] < iter.strides(/*arg=*/input_index)[iter.num_reduce_dims()]);
+        // Notice that dim0 & dim1 does NOT guarantee any launch configuration here!
+        // dim0 & dim1 are more like the upper bound of the block dimension. The
+        // actual launch config and reduction scheme is determined by setting values
+        // to `config.input_mult` and `config.output_mult`.
+        // We try to max out dim1 so that we have enough threads per CTA to deliver
+        // performance for larger problem size.
+        if (reduction_on_fastest_striding_dimension) {
+            // Map block.x to the fastest reducing dimension. It implies:
+            //   1. block_x_reduce is required.
+            //   2. block.y now max out to num_outputs.
+            dim0 = inputs_per_output;
+            dim1 = num_outputs;
+            fastest_moving_stride = iter.strides(/*arg=*/input_index)[0];
+        } else {
+            // Map block.x to the fastest non reducing dimension. It implies:
+            //   1. block_x_reduce is turned off.
+            //   2. block.y now max out to inputs_per_output.
+            dim0 = num_outputs;
+            dim1 = inputs_per_output;
+            fastest_moving_stride = iter.strides(/*arg=*/input_index)[iter.num_reduce_dims()];
+        }
+    } else {
+        reduction_on_fastest_striding_dimension = true;
+        fastest_moving_stride = sizeof(scalar_t);
+        dim0 = 1;
+        dim1 = 1;
+    }
+
+    // We do vectorization to gain better memory access, there are two cases which we call
+    // "vectorize along input" and "vectorize along output". Note that the "input/output"
+    // here does not mean we are vectorizing load/store instructions. We always only vectorize
+    // load instructions.
+    //
+    // Case 1: "vectorize along input"
+    // This case happens when we are reducing along fastest moving dimesion. In such case, threads
+    // with the same threadIdx.y works on the same reduction cooperatively and will produce results
+    // for the same output. In such case, values in each loaded vector always correspond to the same output.
+    //
+    // Case 2: "vectorize along output"
+    // This case happens when the fastest moving dimesion is not the dimension of reduction. In such case,
+    // threads with different threadIdx.x are independent and will produce results for different outputs.
+    // In such case, values in each loaded vector always correspond to different outputs.
+    if (fastest_moving_stride == sizeof(scalar_t)) {
+        if (reduction_on_fastest_striding_dimension && dim0 > 128 && iter.num_reduce_dims() == 1 && vt0 >= input_vec_size) {
+            // Case 1: "vectorize along input"
+            // Note that if vt0 < ReduceConfig::vec_size, then this means the register pressure could be high, in such case,
+            // we should avoid vectorization.
+            config.vectorize_input = true;
+            dim0 /= input_vec_size;
+        } else if (!reduction_on_fastest_striding_dimension) {
+            // Case 2: "vectorize along output"
+            config.output_vec_size = get_output_vec_size<scalar_t>(iter);
+            dim0 /= config.output_vec_size;
+        }
+    }
+
+    // Adjust block_width and block_height
+    config.set_block_dimension<scalar_t>(dim0, dim1);
+
+    int block_width = config.block_width;
+    int block_height = config.block_height;
+
+    if (iter.ndim() == 0 || reduction_on_fastest_striding_dimension) {
+        // Split the input across lanes if the input is contiguous in the reduced
+        // dimension. This will require reduction between threads using warp
+        // shuffle instructions and shared memory (if block_width > warpSize).
+        config.input_mult[0] = config.split_input(block_width);
+    } else {
+        // Otherwise split the output across lanes in a warp.
+        config.output_mult[0] = config.split_output(block_width);
+    }
+
+    constexpr int min_values_per_thread = 16;
+    constexpr int max_values_per_thread = 256;
+
+    const int warp_split_threshold =
+        std::min<int>(block_height * 16, max_values_per_thread);
+    bool split_across_warps = config.values_per_thread() >= warp_split_threshold;
+    const int num_mp = Launcher::GetInstance()->multi_processor_count();
+
+    if (split_across_warps) {
+        // Divide the input across warps in a thread-block, if that leaves at least
+        // 16 elements to be summed by each thread. This will require inter-warp
+        // reduction using shared memory.
+        config.input_mult[1] = config.split_input(block_height);
+    } else {
+        // Otherwise, each warp handles a separate output.
+        config.output_mult[1] = config.split_output(block_height);
+    }
+
+    int max_threads_per_mp = Launcher::GetInstance()->max_threads_per_multi_processor();
+
+    const int blocks_per_sm = max_threads_per_mp / config.num_threads;
+    const int target_grid_size = num_mp * blocks_per_sm;
+    int grid = config.grid()[0];
+    if (config.input_mult[1] != 0 && config.values_per_thread() >= max_values_per_thread && grid <= target_grid_size) {
+        // Divide the input across thread-blocks if the amount of work per-thread
+        // is large enough and the size of the output is small enough. This will
+        // require a reduction using global memory.
+        // If we decide to split input across blocks, as long as we can get enough
+        // number of blocks (`target_grid_size`) to balance SM, we should still
+        // make the number of values per thread large for best performance.
+        int ctas_per_output1 = div_up(target_grid_size, grid);
+        int ctas_per_output2 = div_up(config.values_per_thread(), min_values_per_thread);
+        int ctas_per_output3 = div_up(config.values_per_thread(), max_values_per_thread);
+        // We want the minimum of ctas_per_output1 and ctas_per_output2, so that each thread can have
+        // a large number of values to deal with. But we don't want values_per_thread to be larger than
+        // max_values_per_thread
+        config.ctas_per_output = std::max(std::min<int>(ctas_per_output1, ctas_per_output2), ctas_per_output3);
+        if (config.ctas_per_output > 1) {
+            config.input_mult[2] = config.split_input(config.ctas_per_output);
+        }
+    }
+    return config;
 };
 
 template <typename scalar_t, typename ops_t, typename index_t, typename out_scalar_t = scalar_t, int vt0 = 4, int input_vec_size = vt0>
@@ -699,19 +799,19 @@ struct ReduceOp {
     }
 
     // Currently implemented for max of two outputs
-    // template <class T1, class T2>
-    // DEVICE void set_results(const thrust::pair<T1, T2> x, const index_t base_offset) const {
-    //     if (noutputs >= 1) {
-    //         auto res0 = (T1 *)((char *)dst[0] + base_offset);
-    //         *res0 = x.first;
-    //     }
-    //     if (noutputs >= 2) {
-    //         // base offset is computed assuming element size being sizeof(T1), so we need to make a
-    //         // correction to obtain the correct base offset
-    //         auto res1 = (T2 *)((char *)dst[1] + base_offset / sizeof(T1) * sizeof(T2));
-    //         *res1 = x.second;
-    //     }
-    // }
+    template <class T1, class T2>
+    DEVICE void set_results(const std::pair<T1, T2> x, const index_t base_offset) const {
+        if (noutputs >= 1) {
+            auto res0 = (T1 *)((char *)dst[0] + base_offset);
+            *res0 = x.first;
+        }
+        if (noutputs >= 2) {
+            // base offset is computed assuming element size being sizeof(T1), so we need to make a
+            // correction to obtain the correct base offset
+            auto res1 = (T2 *)((char *)dst[1] + base_offset / sizeof(T1) * sizeof(T2));
+            *res1 = x.second;
+        }
+    }
 
     template <int output_vec_size>
     DEVICE void set_results_to_output(std::array<arg_t, output_vec_size> value, std::array<index_t, output_vec_size> base_offset) const {
@@ -820,144 +920,6 @@ struct ReduceOp {
     }
 };
 
-template <typename arg_t, typename scalar_t, int vt0, int input_vec_size = vt0>
-ReduceConfig set_reduce_config(TensorIterator &iter) {
-    // Start by assuming that each thread handles a single output and all
-    // the inputs for that output.
-    int64_t num_outputs = iter.num_output_elements();
-    int64_t inputs_per_output = iter.numel() / num_outputs;
-    int input_index = iter.ntensors() - 1;
-
-    auto config = ReduceConfig(sizeof(arg_t), num_outputs, inputs_per_output);
-
-    int64_t dim0;
-    int64_t dim1;
-    int64_t fastest_moving_stride;
-    bool reduction_on_fastest_striding_dimension;
-
-    if (iter.ndim() > 0) {
-        // Adjust block size to map block width to fastest changing dimension of input
-        // tensor. This grants the best possible memory accessing pattern, given that
-        // for non-contiguous tensor with space in between, we cannot have perfect
-        // memory coalescing.
-        reduction_on_fastest_striding_dimension =
-            (iter.num_reduce_dims() == iter.ndim()) || (iter.strides(/*arg=*/input_index)[0] < iter.strides(/*arg=*/input_index)[iter.num_reduce_dims()]);
-        // Notice that dim0 & dim1 does NOT guarantee any launch configuration here!
-        // dim0 & dim1 are more like the upper bound of the block dimension. The
-        // actual launch config and reduction scheme is determined by setting values
-        // to `config.input_mult` and `config.output_mult`.
-        // We try to max out dim1 so that we have enough threads per CTA to deliver
-        // performance for larger problem size.
-        if (reduction_on_fastest_striding_dimension) {
-            // Map block.x to the fastest reducing dimension. It implies:
-            //   1. block_x_reduce is required.
-            //   2. block.y now max out to num_outputs.
-            dim0 = inputs_per_output;
-            dim1 = num_outputs;
-            fastest_moving_stride = iter.strides(/*arg=*/input_index)[0];
-        } else {
-            // Map block.x to the fastest non reducing dimension. It implies:
-            //   1. block_x_reduce is turned off.
-            //   2. block.y now max out to inputs_per_output.
-            dim0 = num_outputs;
-            dim1 = inputs_per_output;
-            fastest_moving_stride = iter.strides(/*arg=*/input_index)[iter.num_reduce_dims()];
-        }
-    } else {
-        reduction_on_fastest_striding_dimension = true;
-        fastest_moving_stride = sizeof(scalar_t);
-        dim0 = 1;
-        dim1 = 1;
-    }
-
-    // We do vectorization to gain better memory access, there are two cases which we call
-    // "vectorize along input" and "vectorize along output". Note that the "input/output"
-    // here does not mean we are vectorizing load/store instructions. We always only vectorize
-    // load instructions.
-    //
-    // Case 1: "vectorize along input"
-    // This case happens when we are reducing along fastest moving dimesion. In such case, threads
-    // with the same threadIdx.y works on the same reduction cooperatively and will produce results
-    // for the same output. In such case, values in each loaded vector always correspond to the same output.
-    //
-    // Case 2: "vectorize along output"
-    // This case happens when the fastest moving dimesion is not the dimension of reduction. In such case,
-    // threads with different threadIdx.x are independent and will produce results for different outputs.
-    // In such case, values in each loaded vector always correspond to different outputs.
-    if (fastest_moving_stride == sizeof(scalar_t)) {
-        if (reduction_on_fastest_striding_dimension && dim0 > 128 && iter.num_reduce_dims() == 1 && vt0 >= input_vec_size) {
-            // Case 1: "vectorize along input"
-            // Note that if vt0 < ReduceConfig::vec_size, then this means the register pressure could be high, in such case,
-            // we should avoid vectorization.
-            config.vectorize_input = true;
-            dim0 /= input_vec_size;
-        } else if (!reduction_on_fastest_striding_dimension) {
-            // Case 2: "vectorize along output"
-            config.output_vec_size = get_output_vec_size<scalar_t>(iter);
-            dim0 /= config.output_vec_size;
-        }
-    }
-
-    // Adjust block_width and block_height
-    config.set_block_dimension<scalar_t>(dim0, dim1);
-
-    int block_width = config.block_width;
-    int block_height = config.block_height;
-
-    if (iter.ndim() == 0 || reduction_on_fastest_striding_dimension) {
-        // Split the input across lanes if the input is contiguous in the reduced
-        // dimension. This will require reduction between threads using warp
-        // shuffle instructions and shared memory (if block_width > warpSize).
-        config.input_mult[0] = config.split_input(block_width);
-    } else {
-        // Otherwise split the output across lanes in a warp.
-        config.output_mult[0] = config.split_output(block_width);
-    }
-
-    constexpr int min_values_per_thread = 16;
-    constexpr int max_values_per_thread = 256;
-
-    const int warp_split_threshold =
-        std::min<int>(block_height * 16, max_values_per_thread);
-    bool split_across_warps = config.values_per_thread() >= warp_split_threshold;
-    const int num_mp = Launcher::GetInstance()->multi_processor_count();
-
-    if (split_across_warps) {
-        // Divide the input across warps in a thread-block, if that leaves at least
-        // 16 elements to be summed by each thread. This will require inter-warp
-        // reduction using shared memory.
-        config.input_mult[1] = config.split_input(block_height);
-    } else {
-        // Otherwise, each warp handles a separate output.
-        config.output_mult[1] = config.split_output(block_height);
-    }
-
-    int max_threads_per_mp = Launcher::GetInstance()->max_threads_per_multi_processor();
-
-    const int blocks_per_sm = max_threads_per_mp / config.num_threads;
-    const int target_grid_size = num_mp * blocks_per_sm;
-    int grid = config.grid()[0];
-    if (config.input_mult[1] != 0 && config.values_per_thread() >= max_values_per_thread && grid <= target_grid_size) {
-        // Divide the input across thread-blocks if the amount of work per-thread
-        // is large enough and the size of the output is small enough. This will
-        // require a reduction using global memory.
-        // If we decide to split input across blocks, as long as we can get enough
-        // number of blocks (`target_grid_size`) to balance SM, we should still
-        // make the number of values per thread large for best performance.
-        int ctas_per_output1 = div_up(target_grid_size, grid);
-        int ctas_per_output2 = div_up(config.values_per_thread(), min_values_per_thread);
-        int ctas_per_output3 = div_up(config.values_per_thread(), max_values_per_thread);
-        // We want the minimum of ctas_per_output1 and ctas_per_output2, so that each thread can have
-        // a large number of values to deal with. But we don't want values_per_thread to be larger than
-        // max_values_per_thread
-        config.ctas_per_output = std::max(std::min<int>(ctas_per_output1, ctas_per_output2), ctas_per_output3);
-        if (config.ctas_per_output > 1) {
-            config.input_mult[2] = config.split_input(config.ctas_per_output);
-        }
-    }
-    return config;
-};
-
 template <int nt, int output_vec_size, typename R>
 struct ReduceKernel {
     DEVICE void operator()(ITEM &item) const {
@@ -990,28 +952,83 @@ static void launch_reduce_kernel(const ReduceConfig &config, const R &reduction)
     }
 }
 
+class AccumulationBuffer {
+public:
+    AccumulationBuffer() {
+    }
+
+    AccumulationBuffer(size_t acc_t_size, size_t out_t_size, char *out_ptr, int64_t size, int device) {
+        out_ptr_ = (char *)out_ptr;
+        if (out_t_size >= acc_t_size) {
+            // reusing output buffer for accumulation.
+            acc_ptr_ = (char *)out_ptr;
+            numerator_ = 1;
+            denominator_ = 1;
+        } else {
+            acc_ptr_ = (char *)DeviceAllocator::GetInstance()->allocate(size, device);
+            numerator_ = acc_t_size;
+            denominator_ = out_t_size;
+            reduce_fraction(numerator_, denominator_);
+        }
+    }
+
+    char *get_acc_slice(char *out_ptr) {
+        if (acc_ptr_ == nullptr) {
+            return nullptr;
+        }
+        return acc_ptr_ + ((out_ptr - out_ptr_) * numerator_ / denominator_);
+    }
+
+private:
+    char *acc_ptr_ = nullptr;
+    char *out_ptr_ = nullptr;
+    size_t numerator_;
+    size_t denominator_;
+};
+
 template <typename scalar_t, typename out_scalar_t, int vt0 = 4, int input_vec_size = vt0, typename ops_t, typename ident_t = double>
-inline void gpu_reduce_kernel(TensorIterator &iter, const ops_t &ops, ident_t ident = 0, int64_t base_idx = 0) {
+inline void gpu_reduce_kernel(TensorIterator &iter, const ops_t &ops, ident_t ident = 0,
+                              AccumulationBuffer *acc_buf_ptr = nullptr, int64_t base_idx = 0) {
     CHECK_FAIL(iter.numel() > 0 && iter.ntensors() - iter.noutputs() == 1 && iter.noutputs() >= 1);
 
     using traits = function_traits<decltype(&ops_t::reduce)>;
     using arg_t = typename traits::template arg<0>::type;
-    // using arg_t = at::opmath_type<scalar_t>;
 
     static constexpr bool is_inp_out_type_half =
         (std::is_same_v<dtype::Half, scalar_t> && std::is_same_v<dtype::Half, out_scalar_t>);
 
     static constexpr bool can_accumulate_in_output =
-        std::is_convertible_v<arg_t, out_scalar_t> && !is_inp_out_type_half;
+        std::is_convertible_v<arg_t, out_scalar_t> && (!is_inp_out_type_half);
 
     bool can_use_32bit_indexing = iter.can_use_32bit_indexing();
     std::unique_ptr<AccumulationBuffer> owned_buf_ptr;
+    // The acc_buf_ptr is a shared pointer. It is create at the first entrance and
+    // reused by all recursive function calls.
+    if (acc_buf_ptr == NULL) {
+        // acc_buf_ptr holds buffer used for accumulation among multiple sub_iter
+        // when accumulation in output is not possible.
+        if (!can_accumulate_in_output && !can_use_32bit_indexing) {
+            int64_t output_memory_size = iter.element_size_in_bytes(0);
+            for (int dim = 0; dim < iter.ndim(); dim++) {
+                output_memory_size = std::max(output_memory_size, iter.shape()[dim] * iter.strides(0)[dim]);
+            }
+            output_memory_size /= iter.element_size_in_bytes(0); // iter.strides is in bytes
+            owned_buf_ptr.reset(new AccumulationBuffer(sizeof(arg_t),
+                                                       sizeof(out_scalar_t),
+                                                       (char *)iter.data_ptr(0),
+                                                       output_memory_size * sizeof(arg_t),
+                                                       iter.device()));
+        } else {
+            owned_buf_ptr.reset(new AccumulationBuffer());
+        }
+        acc_buf_ptr = owned_buf_ptr.get();
+    }
 
     if (!can_use_32bit_indexing) {
         for (auto &sub_iter : iter.with_32bit_indexing()) {
             int64_t sub_iter_base_idx = sub_iter.view_offsets(0);
             gpu_reduce_kernel<scalar_t, out_scalar_t, vt0, input_vec_size>(
-                sub_iter, ops, ident, sub_iter_base_idx);
+                sub_iter, ops, ident, acc_buf_ptr, sub_iter_base_idx);
         }
         return;
     }
@@ -1025,8 +1042,19 @@ inline void gpu_reduce_kernel(TensorIterator &iter, const ops_t &ops, ident_t id
     } else {
         out_data_extra = std::nullopt;
     }
+    char *acc_data = acc_buf_ptr->get_acc_slice(out_data);
 
     ReduceConfig config = set_reduce_config<arg_t, scalar_t, vt0, input_vec_size>(iter);
+
+    char *buffer;
+    int *semaphores;
+    if (config.should_global_reduce()) {
+        buffer = (char *)DeviceAllocator::GetInstance()->allocate(config.global_memory_size(), iter.device());
+        semaphores = (int *)DeviceAllocator::GetInstance()->allocate(config.semaphore_size(), iter.device());
+    }
+
+    CHECK_FAIL(can_use_32bit_indexing);
+
     auto output_calc = make_output_calculator<uint32_t>(iter);
     auto input_calc = make_input_calculator<uint32_t>(iter);
     auto reduce = ReduceOp<scalar_t, ops_t, uint32_t, out_scalar_t, vt0, input_vec_size>(
@@ -1037,9 +1065,9 @@ inline void gpu_reduce_kernel(TensorIterator &iter, const ops_t &ops, ident_t id
         in_data,
         out_data,
         out_data_extra,
-        nullptr,
-        nullptr,
-        nullptr,
+        acc_data,
+        buffer,
+        semaphores,
         ident,
         noutputs,
         base_idx);

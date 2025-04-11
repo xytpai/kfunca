@@ -74,6 +74,9 @@ public:
     int ninputs() const {
         return num_inputs_;
     }
+    int device(int arg = 0) const {
+        return tensors_[arg]->device();
+    }
     int64_t view_offsets(int arg) const {
         return view_offsets_[arg];
     }
@@ -110,7 +113,9 @@ public:
             allocate_reduction_outputs();
         }
         reorder_dimensions();
-        allocate_outputs();
+        if (!is_reduction_) {
+            allocate_outputs();
+        }
         coalesce_dimensions();
         update_data_pointers();
         return *this;

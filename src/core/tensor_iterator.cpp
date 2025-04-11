@@ -178,7 +178,8 @@ void TensorIterator::allocate_outputs() {
             }
             auto &stride = tensors_[i]->stride();
             for (int d = 0; d < ndim_; ++d) {
-                stride_bytes_[i][d] = stride[ndim_ - 1 - d] * element_size(dtype);
+                // stride_bytes_[i][d] = stride[ndim_ - 1 - d] * element_size(dtype);
+                stride_bytes_[i][d] = stride[perm_[d]] * element_size(dtype);
             }
         }
     }
@@ -198,7 +199,7 @@ void TensorIterator::allocate_reduction_outputs() {
             *tensors_[i] = std::move(empty(shape, ndim_, dtype, device, false));
             auto &stride = tensors_[i]->stride();
             for (int d = 0; d < ndim_; ++d) {
-                stride_bytes_[i][d] = stride[ndim_ - 1 - d] * element_size(dtype);
+                stride_bytes_[i][d] = stride[d] * element_size(dtype);
             }
             stride_bytes_[i][reduce_dim_] = 0;
         }
