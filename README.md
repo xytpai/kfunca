@@ -18,6 +18,12 @@ Here are the supported features:
 - [ ] to
 - [x] sum
 - [ ] mean
+- [ ] sort
+- [ ] topk
+- [ ] layer_norm
+- [ ] scaled_dot_product_attention
+- [ ] matmul
+- [ ] qkv_linear
 
 ---
 
