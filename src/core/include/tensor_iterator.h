@@ -23,6 +23,7 @@ private:
     int64_t shape_[MAX_TENSOR_DIMS];
     int64_t stride_bytes_[MAX_TENSORS][MAX_TENSOR_DIMS];
     int64_t perm_[MAX_TENSOR_DIMS];
+    int64_t view_offsets_[MAX_TENSOR_DIMS];
     int num_outputs_ = 0;
     int num_inputs_ = 0;
     int num_tensors_ = 0;
@@ -31,6 +32,7 @@ private:
     bool accumulate_ = false;
     bool final_output_ = true;
     bool is_reduction_ = false;
+    int64_t reduce_dim_ = 0;
     ScalarType common_dtype_ = ScalarType::Undefined;
 
     bool check_and_compute_dim();
@@ -40,11 +42,15 @@ private:
     void permute_dimensions();
     void reorder_dimensions();
     void allocate_outputs();
+    void allocate_reduction_outputs();
     void coalesce_dimensions();
 
 public:
     friend std::ostream &operator<<(std::ostream &os, const TensorIterator &iter);
     TensorIterator() {
+        for (int i = 0; i < MAX_TENSOR_DIMS; i++) {
+            view_offsets_[i] = 0;
+        }
     }
     TensorIterator &add_output(Tensor &output) {
         tensors_[num_tensors_++] = &output;
@@ -68,9 +74,18 @@ public:
     int ninputs() const {
         return num_inputs_;
     }
+    int device(int arg = 0) const {
+        return tensors_[arg]->device();
+    }
+    int64_t view_offsets(int arg) const {
+        return view_offsets_[arg];
+    }
     const Tensor &tensor(int arg) const {
         return *tensors_[arg];
     }
+
+    int64_t num_output_elements() const;
+    int num_reduce_dims() const;
 
     ScalarType common_dtype() const {
         CHECK_FAIL(
@@ -89,16 +104,32 @@ public:
         }
     }
 
-    TensorIterator &build_for_loops() {
+    TensorIterator &build() {
         CHECK_FAIL(check_and_compute_dim());
         compute_shape();
         compute_types();
         compute_strides();
+        if (is_reduction_) {
+            allocate_reduction_outputs();
+        }
         reorder_dimensions();
-        allocate_outputs();
+        if (!is_reduction_) {
+            allocate_outputs();
+        }
         coalesce_dimensions();
         update_data_pointers();
         return *this;
+    }
+
+    TensorIterator &build_for_loops() {
+        is_reduction_ = false;
+        return this->build();
+    }
+
+    TensorIterator &build_for_reduce(int64_t reduce_dim) {
+        is_reduction_ = true;
+        reduce_dim_ = reduce_dim;
+        return this->build();
     }
 
     int64_t shape(int dim) const {

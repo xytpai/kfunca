@@ -10,6 +10,16 @@
 
 namespace py = pybind11;
 
+#define FORALL_NUMPY_BASIC_SCALAR_TYPES(_, ...) \
+    _(bool, Bool, __VA_ARGS__)     /* 0 */      \
+    _(uint8_t, Byte, __VA_ARGS__)  /* 1 */      \
+    _(int8_t, Char, __VA_ARGS__)   /* 2 */      \
+    _(int16_t, Short, __VA_ARGS__) /* 3 */      \
+    _(int, Int, __VA_ARGS__)       /* 4 */      \
+    _(int64_t, Long, __VA_ARGS__)  /* 5 */      \
+    _(float, Float, __VA_ARGS__)   /* 6 */      \
+    _(double, Double, __VA_ARGS__) /* 7 */
+
 Tensor from_numpy(py::array array, int device) {
     py::buffer_info buf = array.request();
 #define HANDLE_DTYPE(cpp_type, scalar_type, ...)                         \
@@ -19,7 +29,7 @@ Tensor from_numpy(py::array array, int device) {
         output.copy_from_cpu_ptr((void *)ptr);                           \
         return output;                                                   \
     }
-    FORALL_BASIC_SCALAR_TYPES(HANDLE_DTYPE)
+    FORALL_NUMPY_BASIC_SCALAR_TYPES(HANDLE_DTYPE)
     throw std::runtime_error("Unsupported dtype in from_numpy()");
 #undef HANDLE_DTYPE
 }
@@ -34,7 +44,7 @@ py::array to_numpy(const Tensor &t) {
         return array;                                \
     } break;
     switch (t.dtype()) {
-        FORALL_BASIC_SCALAR_TYPES(HANDLE_DTYPE)
+        FORALL_NUMPY_BASIC_SCALAR_TYPES(HANDLE_DTYPE)
     default:
         throw std::runtime_error("Unsupported dtype in to_numpy()");
     }
@@ -64,10 +74,11 @@ PYBIND11_MODULE(kfunca, m) {
         .def("__deepcopy__", [](const Tensor &self, py::dict) { return Tensor(self); })
         .def("__repr__", &Tensor::to_string)
         .def("defined", &Tensor::defined)
+        .def("numpy", [](const Tensor &self) { return to_numpy(self); })
         .def("numel", &Tensor::numel)
         .def("dim", &Tensor::dim)
         .def("device", &Tensor::device)
-        .def("shape", &Tensor::shape)
+        .def("shape", [](const Tensor &self, int64_t d) { return self.shape(d); })
         .def("dtype", &Tensor::dtype)
         .def("item", [](Tensor &self, std::vector<int64_t> indices) -> py::object {
             auto data = self.item(indices);
@@ -89,5 +100,6 @@ PYBIND11_MODULE(kfunca, m) {
         .def("__add__", &Tensor::operator+)
         .def("__sub__", &Tensor::operator-)
         .def("__mul__", &Tensor::operator*)
-        .def("__truediv__", &Tensor::operator/);
+        .def("__truediv__", &Tensor::operator/)
+        .def("sum", &Tensor::sum);
 }
