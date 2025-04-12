@@ -78,6 +78,9 @@ struct ITEM {
     DEVICE_INLINE void barrier() {
         __syncthreads();
     }
+    DEVICE_INLINE void memory_order_fence() {
+        __threadfence();
+    }
     DEVICE_INLINE char *shared_ptr() {
         return smem_;
     };

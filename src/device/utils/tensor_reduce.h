@@ -311,12 +311,12 @@ ReduceConfig set_reduce_config(TensorIterator &iter) {
     //
     // Case 1: "vectorize along input"
     // This case happens when we are reducing along fastest moving dimesion. In such case, threads
-    // with the same threadIdx.y works on the same reduction cooperatively and will produce results
+    // with the same threadIdx_y works on the same reduction cooperatively and will produce results
     // for the same output. In such case, values in each loaded vector always correspond to the same output.
     //
     // Case 2: "vectorize along output"
     // This case happens when the fastest moving dimesion is not the dimension of reduction. In such case,
-    // threads with different threadIdx.x are independent and will produce results for different outputs.
+    // threads with different threadIdx_x are independent and will produce results for different outputs.
     // In such case, values in each loaded vector always correspond to different outputs.
     if (fastest_moving_stride == sizeof(scalar_t)) {
         if (reduction_on_fastest_striding_dimension && dim0 > 128 && iter.num_reduce_dims() == 1 && vt0 >= input_vec_size) {
@@ -341,7 +341,7 @@ ReduceConfig set_reduce_config(TensorIterator &iter) {
     if (iter.ndim() == 0 || reduction_on_fastest_striding_dimension) {
         // Split the input across lanes if the input is contiguous in the reduced
         // dimension. This will require reduction between threads using warp
-        // shuffle instructions and shared memory (if block_width > warpSize).
+        // shuffle instructions and shared memory (if block_width > GPU_WARP_SIZE).
         config.input_mult[0] = config.split_input(block_width);
     } else {
         // Otherwise split the output across lanes in a warp.
@@ -558,11 +558,12 @@ struct ReduceOp {
         constexpr int align_bytes = alignof(memory::aligned_array<scalar_t, input_vec_size>);
         constexpr int align_elements = align_bytes / sizeof(scalar_t);
         int shift = ((uint64_t)data) % align_bytes / sizeof(scalar_t);
+        auto thread_idx_x = item.thread_idx_x();
         if (shift > 0) {
             data -= shift;
             end += shift;
-            if (threadIdx.x >= shift && threadIdx.x < align_elements && config.should_reduce_tail(item)) {
-                value = ops.reduce(value, *(data + threadIdx.x), threadIdx.x - shift);
+            if (thread_idx_x >= shift && thread_idx_x < align_elements && config.should_reduce_tail(item)) {
+                value = ops.reduce(value, *(data + thread_idx_x), thread_idx_x - shift);
             }
             end -= align_elements;
             data += align_elements;
@@ -596,7 +597,7 @@ struct ReduceOp {
         // tail
         index_t tail_start = end - end % input_vec_size;
         if (config.should_reduce_tail(item)) {
-            int idx = tail_start + threadIdx.x;
+            int idx = tail_start + thread_idx_x;
             if (idx < end) {
                 const auto value = *(data + idx);
                 value_list[0] = ops.reduce(value_list[0], value, idx + shift);
@@ -687,14 +688,15 @@ struct ReduceOp {
     template <int output_vec_size>
     DEVICE std::array<arg_t, output_vec_size> block_x_reduce(ITEM &item, std::array<arg_t, output_vec_size> value, char *shared_memory) const {
         using args_vec_t = std::array<arg_t, output_vec_size>;
-        int dim_x = blockDim.x;
+        int dim_x = item.thread_range_x();
         args_vec_t *shared = (args_vec_t *)shared_memory;
-        if (dim_x > warpSize) {
-            int address_base = threadIdx.x + threadIdx.y * blockDim.x;
+        auto thread_idx_x = item.thread_idx_x();
+        if (dim_x > GPU_WARP_SIZE) {
+            int address_base = thread_idx_x + item.thread_idx_y() * item.thread_range_x();
             shared[address_base] = value;
-            for (int offset = dim_x / 2; offset >= warpSize; offset >>= 1) {
-                __syncthreads();
-                if (threadIdx.x < offset && threadIdx.x + offset < blockDim.x) {
+            for (int offset = dim_x / 2; offset >= GPU_WARP_SIZE; offset >>= 1) {
+                item.barrier();
+                if (thread_idx_x < offset && thread_idx_x + offset < item.thread_range_x()) {
                     args_vec_t other = shared[address_base + offset];
 #pragma unroll
                     for (int i = 0; i < output_vec_size; i++) {
@@ -703,10 +705,10 @@ struct ReduceOp {
                     shared[address_base] = value;
                 }
             }
-            dim_x = warpSize;
+            dim_x = GPU_WARP_SIZE;
         }
 
-        __syncthreads();
+        item.barrier();
 
         for (int offset = 1; offset < dim_x; offset <<= 1) {
 #pragma unroll
@@ -723,9 +725,10 @@ struct ReduceOp {
         using args_vec_t = std::array<arg_t, output_vec_size>;
         args_vec_t *shared = (args_vec_t *)shared_memory;
         shared[config.shared_memory_offset(item, 0)] = value;
-        for (int offset = blockDim.y / 2; offset > 0; offset >>= 1) {
-            __syncthreads();
-            if (threadIdx.y < offset && threadIdx.y + offset < blockDim.y) {
+        auto thread_idx_y = item.thread_idx_y();
+        for (int offset = item.thread_range_y() / 2; offset > 0; offset >>= 1) {
+            item.barrier();
+            if (thread_idx_y < offset && thread_idx_y + offset < item.thread_range_y()) {
                 args_vec_t other = shared[config.shared_memory_offset(item, offset)];
 #pragma unroll
                 for (int i = 0; i < output_vec_size; i++) {
@@ -737,18 +740,19 @@ struct ReduceOp {
         return value;
     }
 
-    DEVICE bool mark_block_finished() const {
-        __shared__ bool is_last_block_done_shared;
+    DEVICE bool mark_block_finished(ITEM &item, char *shared_memory) const {
+        auto is_last_block_done_shared = reinterpret_cast<bool *>(shared_memory);
 
-        __syncthreads();
-        if (threadIdx.x == 0 && threadIdx.y == 0) {
-            int prev_blocks_finished = atomicAdd(&semaphores[blockIdx.x], 1);
-            is_last_block_done_shared = (prev_blocks_finished == gridDim.y - 1);
+        item.barrier();
+
+        if (item.thread_idx_x() == 0 && item.thread_idx_y() == 0) {
+            int prev_blocks_finished = atomicAdd(&semaphores[item.block_idx_x()], 1);
+            *is_last_block_done_shared = (prev_blocks_finished == item.block_range_y() - 1);
         }
 
-        __syncthreads();
+        item.barrier();
 
-        return is_last_block_done_shared;
+        return *is_last_block_done_shared;
     }
 
     template <int output_vec_size, bool can_acc>
@@ -840,22 +844,22 @@ struct ReduceOp {
 
         bool should_store = config.should_store(item, output_idx);
         if (should_store) {
-            index_t offset = config.staging_memory_offset(item, blockIdx.y);
+            index_t offset = config.staging_memory_offset(item, item.block_idx_y());
             reduce_buffer[offset] = value;
         }
 
-        __threadfence(); // make sure writes are globally visible
-        __syncthreads(); // if multiple warps in this block wrote to staging, make sure they're all done
-        bool is_last_block_done = mark_block_finished();
+        item.memory_order_fence(); // make sure writes are globally visible
+        item.barrier();            // if multiple warps in this block wrote to staging, make sure they're all done
+        bool is_last_block_done = mark_block_finished(item, shared_memory);
 
         if (is_last_block_done) {
-            __threadfence(); // complete the acquire pattern after atomic
+            item.memory_order_fence(); // complete the acquire pattern after atomic
             for (auto &v : value) {
                 v = ident;
             }
             if (config.should_block_x_reduce()) {
-                index_t input_offset = threadIdx.x + threadIdx.y * blockDim.x;
-                index_t step = blockDim.x * blockDim.y;
+                index_t input_offset = item.thread_idx_x() + item.thread_idx_y() * item.thread_range_x();
+                index_t step = item.thread_range_x() * item.thread_range_y();
                 for (; input_offset < config.ctas_per_output; input_offset += step) {
                     index_t idx = config.staging_memory_offset(item, input_offset);
                     arg_vec_t next = reduce_buffer[idx];
@@ -865,8 +869,8 @@ struct ReduceOp {
                     }
                 }
             } else {
-                index_t input_offset = threadIdx.y;
-                index_t step = blockDim.y;
+                index_t input_offset = item.thread_idx_y();
+                index_t step = item.thread_range_y();
                 for (; input_offset < config.ctas_per_output; input_offset += step) {
                     index_t idx = config.staging_memory_offset(item, input_offset);
                     arg_vec_t next = reduce_buffer[idx];
