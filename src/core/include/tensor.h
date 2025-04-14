@@ -168,4 +168,5 @@ public:
     Tensor operator*(const Tensor &other) const;
     Tensor operator/(const Tensor &other) const;
     Tensor sum(int64_t reduce_dim) const;
+    Tensor mean(int64_t reduce_dim) const;
 };
