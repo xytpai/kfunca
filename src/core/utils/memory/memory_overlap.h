@@ -53,7 +53,11 @@ inline bool is_no_partial_overlap(
     char *self_ptr_max = static_cast<char *>(self_ptr) + self_max * self_element_size;
     char *other_ptr_min = static_cast<char *>(other_ptr) + other_min * other_element_size;
     char *other_ptr_max = static_cast<char *>(other_ptr) + other_max * other_element_size;
-    return (self_ptr_max < other_ptr_min || other_ptr_max < self_ptr_min);
+    auto self_ptr_min_ = reinterpret_cast<uint64_t>(self_ptr_min);
+    auto self_ptr_max_ = reinterpret_cast<uint64_t>(self_ptr_max);
+    auto other_ptr_min_ = reinterpret_cast<uint64_t>(other_ptr_min);
+    auto other_ptr_max_ = reinterpret_cast<uint64_t>(other_ptr_max);
+    return (self_ptr_max_ < other_ptr_min_ || other_ptr_max_ < self_ptr_min_);
 }
 
 }

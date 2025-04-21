@@ -82,7 +82,7 @@ void TensorIterator::mark_outputs() {
         if (!output->defined()) continue;
         for (int arg = num_outputs_; arg < num_tensors_; ++arg) {
             auto input = tensors_[arg];
-            if ((uint64_t)output == (uint64_t)input) {
+            if (output == input) {
                 tensor_props_[i].is_read_write = true;
             }
         }
@@ -96,7 +96,7 @@ void TensorIterator::check_mem_overlaps() {
         CHECK_FAIL(is_non_overlapping_and_dense(output->shape(), output->stride(), ndim_));
         for (int j = num_outputs_; j < num_tensors_; ++j) {
             auto input = tensors_[j];
-            if ((uint64_t)output != (uint64_t)input) {
+            if (output != input) {
                 CHECK_FAIL(is_no_partial_overlap(
                     output->data_ptr(), output->element_size_in_bytes(), output->shape(), output->stride(),
                     input->data_ptr(), input->element_size_in_bytes(), input->shape(), input->stride(),
