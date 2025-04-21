@@ -5,6 +5,7 @@
 #include "tensor.h"
 
 int main() {
+    std::cout << "testing " << __FILE__ << "\n";
     std::vector<int64_t> shape = {3, 5};
     int tensor_data[15] = {
         3, 2, -1, 2, 3, // 0
