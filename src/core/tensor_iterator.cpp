@@ -1,6 +1,20 @@
 #include "tensor_iterator.h"
+#include "memory_overlap.h"
 
-bool TensorIterator::check_and_compute_dim() {
+void TensorIterator::check_and_compute_common_device() {
+    common_device_ = -1;
+    for (int i = 0; i < num_tensors_; i++) {
+        auto tensor_i = tensors_[i];
+        if (!tensor_i->defined()) continue;
+        if (common_device_ == -1 && tensor_i->device() >= 0) {
+            common_device_ = tensor_i->device();
+        } else {
+            CHECK_FAIL(tensor_i->device() == common_device_, "All defined tensors should in the same device");
+        }
+    }
+}
+
+void TensorIterator::check_and_compute_dim() {
     bool is_first = true;
     int first_dim;
     for (int i = 0; i < num_tensors_; ++i) {
@@ -9,31 +23,10 @@ bool TensorIterator::check_and_compute_dim() {
             first_dim = tensors_[i]->dim();
             is_first = false;
         } else {
-            if (first_dim != tensors_[i]->dim())
-                return false;
+            CHECK_FAIL(first_dim == tensors_[i]->dim(), "All defined tensors should in the same dim");
         }
     }
     ndim_ = first_dim;
-    return true;
-}
-
-void TensorIterator::compute_shape() {
-    for (int i = ndim_ - 1; i >= 0; --i) {
-        bool is_first = true;
-        int64_t sz;
-        for (int j = 0; j < num_tensors_; ++j) {
-            if (!tensors_[j]->defined()) continue;
-            if (is_first) {
-                sz = tensors_[j]->shape(i);
-                is_first = false;
-            } else {
-                auto sz_ = tensors_[j]->shape(i);
-                CHECK_FAIL(sz == sz_ || sz == 1 || sz_ == 1);
-                sz = sz == 1 ? sz_ : sz;
-            }
-        }
-        shape_[i] = sz;
-    }
 }
 
 ScalarType update_common_dtype(ScalarType a, ScalarType b) {
@@ -50,17 +43,10 @@ ScalarType update_common_dtype(ScalarType a, ScalarType b) {
     }
 }
 
-void TensorIterator::compute_types() {
-    int common_device = -1;
+void TensorIterator::compute_common_dtype() {
     common_dtype_ = ScalarType::Undefined;
-    ScalarType output_dtype = ScalarType::Undefined;
     for (int i = num_outputs_; i < num_tensors_; i++) {
         auto tensor_i = tensors_[i];
-        if (common_device == -1 && tensor_i->device() >= 0) {
-            common_device = tensor_i->device();
-        } else {
-            CHECK_FAIL(tensor_i->device() == common_device, "All input tensors should in the same device");
-        }
         if (tensor_i->dtype() != common_dtype_) {
             if (common_dtype_ == ScalarType::Undefined) {
                 common_dtype_ = tensor_i->dtype();
@@ -71,7 +57,93 @@ void TensorIterator::compute_types() {
     }
 }
 
-void TensorIterator::compute_strides() {
+void TensorIterator::allocate_reduction_output_if_need() {
+    if (is_reduction_) {
+        auto device = common_device_;
+        auto dtype = common_dtype_;
+        auto input_shape = tensors_[num_outputs_]->shape();
+        for (int i = 0; i < num_outputs_; ++i) {
+            if (!tensors_[i]->defined()) {
+                int64_t shape[MAX_TENSOR_DIMS];
+                for (int k = 0; k < ndim_; ++k) {
+                    shape[k] = input_shape[k];
+                }
+                shape[reduce_dim_] = 1;
+                *tensors_[i] = std::move(empty(shape, ndim_, dtype, device, false));
+            }
+        }
+    }
+}
+
+void TensorIterator::mark_outputs() {
+    for (int i = 0; i < num_outputs_; ++i) {
+        tensor_props_[i].is_output = true;
+        auto output = tensors_[i];
+        if (!output->defined()) continue;
+        for (int arg = num_outputs_; arg < num_tensors_; ++arg) {
+            auto input = tensors_[arg];
+            if (output == input) {
+                tensor_props_[i].is_read_write = true;
+            }
+        }
+    }
+}
+
+void TensorIterator::check_mem_overlaps() {
+    for (int i = 0; i < num_outputs_; ++i) {
+        auto output = tensors_[i];
+        if (!output->defined()) continue;
+        CHECK_FAIL(is_non_overlapping_and_dense(output->shape(), output->stride(), ndim_));
+        for (int j = num_outputs_; j < num_tensors_; ++j) {
+            auto input = tensors_[j];
+            if (output != input) {
+                CHECK_FAIL(is_no_partial_overlap(
+                    output->data_ptr(), output->element_size_in_bytes(), output->shape(), output->stride(),
+                    input->data_ptr(), input->element_size_in_bytes(), input->shape(), input->stride(),
+                    ndim_));
+            }
+        }
+    }
+}
+
+void TensorIterator::compute_broadcasted_shape() {
+    for (int i = ndim_ - 1; i >= 0; --i) {
+        bool is_first = true;
+        int64_t sz;
+        for (int j = num_outputs_; j < num_tensors_; ++j) {
+            if (is_first) {
+                sz = tensors_[j]->shape(i);
+                is_first = false;
+            } else {
+                auto sz_ = tensors_[j]->shape(i);
+                CHECK_FAIL(sz == sz_ || sz == 1 || sz_ == 1);
+                sz = sz == 1 ? sz_ : sz;
+            }
+        }
+        shape_[i] = sz;
+    }
+}
+
+void TensorIterator::mark_resize_outputs() {
+    // Outputs cannot be broadcasted. Check that the shape of the outputs matches
+    // the inferred shape.
+    for (int i = 0; i < num_outputs_; ++i) {
+        auto output = tensors_[i];
+        if (!output->defined()) {
+            tensor_props_[i].will_resize = true;
+        }
+        if (output->defined() && !output->shape().equals(shape_)) {
+            if (resize_outputs_ && !tensor_props_[i].is_read_write) {
+                tensor_props_[i].will_resize = true;
+                continue;
+            }
+            // for reduction, output size does not match shape_, as output is reduced size, and shape_ is size of the input
+            CHECK_FAIL(is_reduction_, "output with shape doesn't match the broadcast shape ");
+        }
+    }
+}
+
+void TensorIterator::compute_broadcasted_strides() {
     for (int id = 0; id < num_tensors_; ++id) {
         auto t = tensors_[id];
         if (!t->defined()) continue;
@@ -108,14 +180,20 @@ void TensorIterator::reorder_dimensions() {
         perm_[0] = 0;
         return;
     }
-    int ct = 0;
-    for (int i = ndim_ - 1; i >= 0; --i) {
+
+    // initialize perm with n-1, n-2, ..., 1, 0
+    for (int i = ndim_ - 1, ct = 0; i >= 0; --i) {
         perm_[ct++] = i;
     }
 
+    // returns 1 if the dim0 should come after dim1, -1 if dim0 should come
+    // before dim1, and 0 if the comparison is ambiguous.
     auto should_swap = [&](size_t dim0, size_t dim1) {
         for (int arg = 0; arg < num_tensors_; ++arg) {
-            if (!tensors_[arg]->defined()) continue;
+            // ignore undefined or incorrectly sized tensors
+            if (!tensors_[arg]->defined() || tensor_props_[arg].will_resize) {
+                continue;
+            }
             int64_t stride0 = stride_bytes_[arg][dim0];
             int64_t stride1 = stride_bytes_[arg][dim1];
             if (is_reduction_ && arg < num_outputs_) {
@@ -160,48 +238,21 @@ void TensorIterator::reorder_dimensions() {
     }
 
     permute_dimensions();
-    is_reordered_ = true;
 }
 
 void TensorIterator::allocate_outputs() {
-    auto device = tensors_[num_outputs_]->device();
+    auto device = common_device_;
     auto dtype = common_dtype_;
     for (int i = 0; i < num_outputs_; ++i) {
-        if (!tensors_[i]->defined()) {
-            if (!is_reordered_) {
-                *tensors_[i] = std::move(empty(shape_, ndim_, dtype, device, false));
-            } else {
-                int64_t shape[MAX_TENSOR_DIMS];
-                for (int k = 0; k < ndim_; ++k)
-                    shape[perm_[k]] = shape_[k];
-                *tensors_[i] = std::move(empty(shape, ndim_, dtype, device, false));
-            }
-            auto &stride = tensors_[i]->stride();
-            for (int d = 0; d < ndim_; ++d) {
-                // stride_bytes_[i][d] = stride[ndim_ - 1 - d] * element_size(dtype);
-                stride_bytes_[i][d] = stride[perm_[d]] * element_size(dtype);
-            }
-        }
-    }
-}
-
-void TensorIterator::allocate_reduction_outputs() {
-    CHECK_FAIL(is_reordered_ == false);
-    auto device = tensors_[num_outputs_]->device();
-    auto dtype = common_dtype_;
-    for (int i = 0; i < num_outputs_; ++i) {
-        if (!tensors_[i]->defined()) {
+        if (!tensors_[i]->defined() || tensor_props_[i].will_resize) {
             int64_t shape[MAX_TENSOR_DIMS];
-            for (int k = 0; k < ndim_; ++k) {
-                shape[k] = shape_[k];
-            }
-            shape[reduce_dim_] = 1;
+            for (int k = 0; k < ndim_; ++k)
+                shape[perm_[k]] = shape_[k];
             *tensors_[i] = std::move(empty(shape, ndim_, dtype, device, false));
             auto &stride = tensors_[i]->stride();
             for (int d = 0; d < ndim_; ++d) {
-                stride_bytes_[i][d] = stride[d] * element_size(dtype);
+                stride_bytes_[i][d] = stride[perm_[d]] * element_size(dtype);
             }
-            stride_bytes_[i][reduce_dim_] = 0;
         }
     }
 }
@@ -250,6 +301,86 @@ void TensorIterator::coalesce_dimensions() {
     }
 
     ndim_ = prev_dim + 1;
+}
+
+void TensorIterator::update_data_pointers() {
+    for (int i = 0; i < MAX_TENSORS; i++) {
+        if (i < num_tensors_) {
+            data_ptr_[i] = tensors_[i]->data_ptr();
+        } else {
+            data_ptr_[i] = nullptr;
+        }
+    }
+}
+
+std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {
+    os << "TensorIterator(\n\tshape=[";
+    for (int i = 0; i < iter.dim(); ++i)
+        os << iter.shape(i) << ",";
+    os << "\b],\n\t";
+    for (int i = 0; i < iter.ntensors(); ++i) {
+        os << "stride_bytes_" << i << "=[";
+        for (int j = 0; j < iter.dim(); ++j)
+            os << iter.stride_bytes(i, j) << ",";
+        os << "\b],\n\t";
+    }
+    for (int i = 0; i < iter.ntensors(); ++i) {
+        os << "data_ptr_" << i << "=" << iter.data_ptr(i) << ", \n\t";
+    }
+    os << "perm=[";
+    for (int i = 0; i < iter.dim(); ++i)
+        os << iter.perm(i) << ",";
+    os << "\b],\n\tdim=" << iter.dim() << ",\n\tninputs=" << iter.ninputs();
+    os << ",\n\tnoutputs=" << iter.noutputs();
+    os << ",\n\tcommon_dtype=" << iter.common_dtype() << ")";
+    return os;
+}
+
+TensorIterator::TensorIterator() {
+    for (int i = 0; i < MAX_TENSOR_DIMS; i++) {
+        view_offsets_[i] = 0;
+    }
+}
+
+TensorIterator &TensorIterator::add_output(Tensor &output) {
+    CHECK_FAIL(num_inputs_ == 0);
+    tensors_[num_tensors_++] = &output;
+    num_outputs_++;
+    return *this;
+}
+
+TensorIterator &TensorIterator::add_input(const Tensor &input) {
+    tensors_[num_tensors_++] = const_cast<Tensor *>(&input);
+    num_inputs_++;
+    return *this;
+}
+
+int64_t TensorIterator::numel() const {
+    int64_t numel = 1;
+    for (int i = 0; i < ndim_; ++i) {
+        numel *= shape_[i];
+    }
+    return numel;
+}
+
+int64_t TensorIterator::num_output_elements() const {
+    int64_t elem = 1;
+    for (int dim = 0; dim < ndim(); dim++) {
+        if (stride_bytes_[0][dim] != 0 || shape_[dim] == 0) {
+            elem *= shape_[dim];
+        }
+    }
+    return elem;
+}
+
+int TensorIterator::num_reduce_dims() const {
+    int count = 0;
+    for (int dim = 0; dim < ndim(); dim++) {
+        if (stride_bytes_[0][dim] == 0) {
+            count++;
+        }
+    }
+    return count;
 }
 
 bool TensorIterator::can_use_32bit_indexing() const {
@@ -348,45 +479,46 @@ SplitUntil32Bit TensorIterator::with_32bit_indexing() const {
     return SplitUntil32Bit(*this);
 }
 
-int64_t TensorIterator::num_output_elements() const {
-    int64_t elem = 1;
-    for (int dim = 0; dim < ndim(); dim++) {
-        if (stride_bytes_[0][dim] != 0 || shape_[dim] == 0) {
-            elem *= shape_[dim];
-        }
-    }
-    return elem;
+TensorIterator &TensorIterator::build() {
+    // check whether all defined tensors are in the same device, then update common_device_
+    check_and_compute_common_device();
+    // check whether all defined tensors have the same dim, then update ndim_
+    check_and_compute_dim();
+    // infer common_dtype from input tensors
+    compute_common_dtype();
+    // atomatic output allocation for reduction
+    allocate_reduction_output_if_need();
+    // set is_output and is_read_write flags on appropriate tensors
+    mark_outputs();
+    // check that the defined outputs have no internal overlap
+    // and do not share memory with inputs
+    check_mem_overlaps();
+    // compute and check the broadcasted shape through input tensors
+    compute_broadcasted_shape();
+    // mark outputs for resizing if necessary
+    mark_resize_outputs();
+    // compute each defined tensor's stride after broadcasting
+    compute_broadcasted_strides();
+    // re-order dimensions to improve coalescing
+    reorder_dimensions();
+    // allocate the output tensor if it's not provided
+    allocate_outputs();
+    // coalesce adjacent dimensions when possible
+    coalesce_dimensions();
+    // update data_ptr_
+    update_data_pointers();
+    return *this;
 }
 
-int TensorIterator::num_reduce_dims() const {
-    int count = 0;
-    for (int dim = 0; dim < ndim(); dim++) {
-        if (stride_bytes_[0][dim] == 0) {
-            count++;
-        }
-    }
-    return count;
+TensorIterator &TensorIterator::build_for_loops() {
+    is_reduction_ = false;
+    resize_outputs_ = true;
+    return this->build();
 }
 
-std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {
-    os << "TensorIterator(\n\tshape=[";
-    for (int i = 0; i < iter.dim(); ++i)
-        os << iter.shape(i) << ",";
-    os << "\b],\n\t";
-    for (int i = 0; i < iter.ntensors(); ++i) {
-        os << "stride_bytes_" << i << "=[";
-        for (int j = 0; j < iter.dim(); ++j)
-            os << iter.stride_bytes(i, j) << ",";
-        os << "\b],\n\t";
-    }
-    for (int i = 0; i < iter.ntensors(); ++i) {
-        os << "data_ptr_" << i << "=" << iter.data_ptr(i) << ", \n\t";
-    }
-    os << "perm=[";
-    for (int i = 0; i < iter.dim(); ++i)
-        os << iter.perm(i) << ",";
-    os << "\b],\n\tdim=" << iter.dim() << ",\n\tninputs=" << iter.ninputs();
-    os << ",\n\tnoutputs=" << iter.noutputs();
-    os << ",\n\tcommon_dtype=" << iter.common_dtype() << ")";
-    return os;
+TensorIterator &TensorIterator::build_for_reduce(int64_t reduce_dim) {
+    is_reduction_ = true;
+    resize_outputs_ = false;
+    reduce_dim_ = reduce_dim;
+    return this->build();
 }

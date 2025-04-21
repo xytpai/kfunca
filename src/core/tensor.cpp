@@ -121,3 +121,7 @@ Tensor Tensor::operator/(const Tensor &other) const {
 Tensor Tensor::sum(int64_t reduce_dim) const {
     return gpu::sum(*this, reduce_dim);
 }
+
+Tensor Tensor::mean(int64_t reduce_dim) const {
+    return gpu::mean(*this, reduce_dim);
+}

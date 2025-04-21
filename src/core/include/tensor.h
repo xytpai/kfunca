@@ -29,6 +29,24 @@ struct d_array {
     T const &operator[](int i) const {
         return val[i];
     }
+    bool equals(d_array<T, vec_size> &other) {
+#pragma unroll
+        for (int i = 0; i < vec_size; ++i) {
+            if (val[i] != other[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+    bool equals(T (&other)[vec_size]) {
+#pragma unroll
+        for (int i = 0; i < vec_size; ++i) {
+            if (val[i] != other[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 
 typedef d_array<int64_t, MAX_TENSOR_DIMS> dim_t;
@@ -168,4 +186,5 @@ public:
     Tensor operator*(const Tensor &other) const;
     Tensor operator/(const Tensor &other) const;
     Tensor sum(int64_t reduce_dim) const;
+    Tensor mean(int64_t reduce_dim) const;
 };

@@ -64,12 +64,14 @@ class TestTensorImpl(object):
                     assert(np.allclose(out, out_gpu.numpy()) == True)
     
     def test_reduce(self):
-        for dim in [0,1,2]:
-            arr = np.random.uniform(-10, 10, size=[223,23,3213]).astype(np.float32)
-            arr_sum = np.sum(arr, axis=dim, keepdims=True)
-            arr_gpu = kfunca.from_numpy(arr, 0)
-            arr_gpu_sum = arr_gpu.sum(dim)
-            assert(np.allclose(arr_sum, arr_gpu_sum.numpy(), rtol=1e-1, atol=1e-1) == True)
+        for op in ['sum', 'mean']:
+            print("op:{}".format(op))
+            for dim in [0,1,2]:
+                arr = np.random.uniform(-10, 10, size=[223,23,3213]).astype(np.float32)
+                arr_sum = eval("np.{}(arr, axis=dim, keepdims=True)".format(op))
+                arr_gpu = kfunca.from_numpy(arr, 0)
+                arr_gpu_sum = eval("arr_gpu.{}(dim)".format(op))
+                assert(np.allclose(arr_sum, arr_gpu_sum.numpy(), rtol=1e-2, atol=1e-2) == True)
 
 
 if __name__ == '__main__':

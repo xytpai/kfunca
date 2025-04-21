@@ -101,5 +101,6 @@ PYBIND11_MODULE(kfunca, m) {
         .def("__sub__", &Tensor::operator-)
         .def("__mul__", &Tensor::operator*)
         .def("__truediv__", &Tensor::operator/)
-        .def("sum", &Tensor::sum);
+        .def("sum", &Tensor::sum)
+        .def("mean", &Tensor::mean);
 }
