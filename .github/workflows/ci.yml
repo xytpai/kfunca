@@ -33,3 +33,4 @@ jobs:
           python -c "import kfunca; print(kfunca.__file__)"
           python -c "import kfunca; kfunca.device_info()"
           python -m pytest -sv test/test_*.py
+          for f in build/test_*.out; do ./"$f"; done

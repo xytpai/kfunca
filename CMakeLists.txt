@@ -30,3 +30,10 @@ find_package(pybind11 REQUIRED)
 
 pybind11_add_module(kfunca src/register.cpp)
 target_link_libraries(kfunca PRIVATE kfunca_device kfunca_core)
+
+file(GLOB TEST_SRCS "test/cpp/*.cpp")
+foreach(TEST_SRC ${TEST_SRCS})
+    get_filename_component(TEST_BASE_NAME ${TEST_SRC} NAME_WE)
+    add_executable(${TEST_BASE_NAME}.out ${TEST_SRC})
+    target_link_libraries(${TEST_BASE_NAME}.out PRIVATE kfunca_device kfunca_core)
+endforeach()
