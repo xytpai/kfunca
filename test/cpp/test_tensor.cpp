@@ -18,6 +18,6 @@ int main() {
     int out[15] = {0};
     t.copy_to_cpu_ptr(out);
     for (int i = 0; i < 15; i++) {
-        assert(tensor_data[i] == out[i] / 2);
+        assert(tensor_data[i] == out[i]);
     }
 }
