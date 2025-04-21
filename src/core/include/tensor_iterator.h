@@ -12,6 +12,12 @@
 
 struct SplitUntil32Bit;
 
+struct TensorProp {
+    bool is_output = false;
+    bool is_read_write = false;
+    bool will_resize = false;
+};
+
 class TensorIterator final {
     enum {
         MAX_TENSORS = 8,
@@ -19,117 +25,88 @@ class TensorIterator final {
 
 private:
     Tensor *tensors_[MAX_TENSORS];
+    TensorProp tensor_props_[MAX_TENSORS];
     void *data_ptr_[MAX_TENSORS];
+
     int64_t shape_[MAX_TENSOR_DIMS];
     int64_t stride_bytes_[MAX_TENSORS][MAX_TENSOR_DIMS];
     int64_t perm_[MAX_TENSOR_DIMS];
     int64_t view_offsets_[MAX_TENSOR_DIMS];
+
+    int common_device_ = -1;
     int num_outputs_ = 0;
     int num_inputs_ = 0;
     int num_tensors_ = 0;
     int ndim_ = 0;
-    bool is_reordered_ = false;
+    bool resize_outputs_ = true;
     bool accumulate_ = false;
     bool final_output_ = true;
     bool is_reduction_ = false;
     int64_t reduce_dim_ = 0;
     ScalarType common_dtype_ = ScalarType::Undefined;
 
-    bool check_and_compute_dim();
-    void compute_shape();
-    void compute_types();
-    void compute_strides();
+    void check_and_compute_common_device();
+    void check_and_compute_dim();
+    void compute_common_dtype();
+    void allocate_reduction_output_if_need();
+    void mark_outputs();
+    void check_mem_overlaps();
+    void compute_broadcasted_shape();
+    void mark_resize_outputs();
+    void compute_broadcasted_strides();
     void permute_dimensions();
     void reorder_dimensions();
     void allocate_outputs();
-    void allocate_reduction_outputs();
     void coalesce_dimensions();
+    void update_data_pointers();
 
 public:
     friend std::ostream &operator<<(std::ostream &os, const TensorIterator &iter);
-    TensorIterator() {
-        for (int i = 0; i < MAX_TENSOR_DIMS; i++) {
-            view_offsets_[i] = 0;
-        }
-    }
-    TensorIterator &add_output(Tensor &output) {
-        tensors_[num_tensors_++] = &output;
-        num_outputs_++;
-        return *this;
-    }
-    TensorIterator &add_input(const Tensor &input) {
-        tensors_[num_tensors_++] = const_cast<Tensor *>(&input);
-        num_inputs_++;
-        return *this;
-    }
+
+    TensorIterator();
+    TensorIterator &add_output(Tensor &output);
+    TensorIterator &add_input(const Tensor &input);
     TensorIterator &add_output(Tensor &&output) = delete;
     TensorIterator &add_input(Tensor &&input) = delete;
+
+    int64_t numel() const;
+    int64_t num_output_elements() const;
+    int num_reduce_dims() const;
+    bool can_use_32bit_indexing() const;
+    bool has_contiguous_first_dim() const;
+    bool is_contiguous() const;
+    int get_dim_to_split() const;
+    bool is_dim_reduced(int dim) const;
+    void narrow(int dim, int64_t start, int64_t size);
+    std::unique_ptr<TensorIterator> split(int dim);
+    SplitUntil32Bit with_32bit_indexing() const;
+
+    TensorIterator &build();
+    TensorIterator &build_for_loops();
+    TensorIterator &build_for_reduce(int64_t reduce_dim);
 
     int ntensors() const {
         return num_tensors_;
     }
+
     int noutputs() const {
         return num_outputs_;
     }
+
     int ninputs() const {
         return num_inputs_;
     }
+
     int device(int arg = 0) const {
         return tensors_[arg]->device();
     }
+
     int64_t view_offsets(int arg) const {
         return view_offsets_[arg];
     }
+
     const Tensor &tensor(int arg) const {
         return *tensors_[arg];
-    }
-
-    int64_t num_output_elements() const;
-    int num_reduce_dims() const;
-
-    ScalarType common_dtype() const {
-        CHECK_FAIL(
-            common_dtype_ != ScalarType::Undefined,
-            "Queried for invalid common dtype!");
-        return common_dtype_;
-    }
-
-    void update_data_pointers() {
-        for (int i = 0; i < MAX_TENSORS; i++) {
-            if (i < num_tensors_) {
-                data_ptr_[i] = tensors_[i]->data_ptr();
-            } else {
-                data_ptr_[i] = nullptr;
-            }
-        }
-    }
-
-    TensorIterator &build() {
-        CHECK_FAIL(check_and_compute_dim());
-        compute_shape();
-        compute_types();
-        compute_strides();
-        if (is_reduction_) {
-            allocate_reduction_outputs();
-        }
-        reorder_dimensions();
-        if (!is_reduction_) {
-            allocate_outputs();
-        }
-        coalesce_dimensions();
-        update_data_pointers();
-        return *this;
-    }
-
-    TensorIterator &build_for_loops() {
-        is_reduction_ = false;
-        return this->build();
-    }
-
-    TensorIterator &build_for_reduce(int64_t reduce_dim) {
-        is_reduction_ = true;
-        reduce_dim_ = reduce_dim;
-        return this->build();
     }
 
     int64_t shape(int dim) const {
@@ -164,18 +141,6 @@ public:
         return *tensors_[arg];
     }
 
-    int64_t numel() const {
-        int64_t numel = 1;
-        for (int i = 0; i < ndim_; ++i) {
-            numel *= shape_[i];
-        }
-        return numel;
-    }
-
-    bool can_use_32bit_indexing() const;
-    bool has_contiguous_first_dim() const;
-    bool is_contiguous() const;
-
     /// If the kernel should accumulate into the output. Only relevant for reductions
     bool should_accumulate() const {
         return accumulate_;
@@ -185,25 +150,28 @@ public:
         return final_output_;
     }
 
-    int get_dim_to_split() const;
-    bool is_dim_reduced(int dim) const;
-    void narrow(int dim, int64_t start, int64_t size);
-    std::unique_ptr<TensorIterator> split(int dim);
-
     ScalarType input_dtype(int arg = 0) const {
         return tensors_[num_outputs_ + arg]->dtype();
     }
+
     ScalarType dtype(int arg = 0) const {
         return tensors_[arg]->dtype();
     }
+
+    ScalarType common_dtype() const {
+        CHECK_FAIL(
+            common_dtype_ != ScalarType::Undefined,
+            "Queried for invalid common dtype!");
+        return common_dtype_;
+    }
+
     void *data_ptr(int arg) const {
         return data_ptr_[arg];
     }
+
     int64_t element_size_in_bytes(int arg) const {
         return tensors_[arg]->element_size_in_bytes();
     }
-
-    SplitUntil32Bit with_32bit_indexing() const;
 };
 
 struct SplitUntil32Bit {
