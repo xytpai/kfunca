@@ -3,7 +3,7 @@
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
 #include "tensor_storage.h"
-#include "launcher.h"
+#include "exception.h"
 
 namespace utils {
 namespace memory {
