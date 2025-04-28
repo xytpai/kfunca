@@ -3,6 +3,10 @@
 #include "launcher.h"
 #include "memory_engine.h"
 
+void dset_device(const int device) {
+    Launcher::GetInstance()->set_device(device, false);
+}
+
 void *dmalloc(const size_t size) {
     return Launcher::GetInstance()->malloc_(size);
 }

@@ -248,6 +248,7 @@ public:
 
 private:
     Launcher() {
+        current_device_ = -1;
         // Need intrinsic API
         srand((unsigned)time(0));
         stream_ = 0;

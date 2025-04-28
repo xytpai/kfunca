@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+void dset_device(const int device);
 void *dmalloc(const size_t size);
 void dfree(void *ptr);
 void dmemcpy_h2d(void *dst, const void *src, const size_t size);

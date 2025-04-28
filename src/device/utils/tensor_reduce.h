@@ -969,7 +969,8 @@ public:
             numerator_ = 1;
             denominator_ = 1;
         } else {
-            acc_ptr_ = (char *)DeviceAllocator::GetInstance()->allocate(size, device);
+            buffer_ = DeviceAllocator::GetInstance()->allocate(size, device);
+            acc_ptr_ = (char *)buffer_.get();
             numerator_ = acc_t_size;
             denominator_ = out_t_size;
             reduce_fraction(numerator_, denominator_);
@@ -988,6 +989,7 @@ private:
     char *out_ptr_ = nullptr;
     size_t numerator_;
     size_t denominator_;
+    DataPtr buffer_;
 };
 
 template <typename scalar_t, typename out_scalar_t, int vt0 = 4, int input_vec_size = vt0, typename ops_t, typename ident_t = double>
@@ -1050,11 +1052,11 @@ inline void gpu_reduce_kernel(TensorIterator &iter, const ops_t &ops, ident_t id
 
     ReduceConfig config = set_reduce_config<arg_t, scalar_t, vt0, input_vec_size>(iter);
 
-    char *buffer;
-    int *semaphores;
+    DataPtr buffer;
+    DataPtr semaphores;
     if (config.should_global_reduce()) {
-        buffer = (char *)DeviceAllocator::GetInstance()->allocate(config.global_memory_size(), iter.device());
-        semaphores = (int *)DeviceAllocator::GetInstance()->allocate(config.semaphore_size(), iter.device());
+        buffer = DeviceAllocator::GetInstance()->allocate(config.global_memory_size(), iter.device());
+        semaphores = DeviceAllocator::GetInstance()->allocate(config.semaphore_size(), iter.device());
     }
 
     CHECK_FAIL(can_use_32bit_indexing);
@@ -1070,8 +1072,8 @@ inline void gpu_reduce_kernel(TensorIterator &iter, const ops_t &ops, ident_t id
         out_data,
         out_data_extra,
         acc_data,
-        buffer,
-        semaphores,
+        buffer.get(),
+        (int *)semaphores.get(),
         ident,
         noutputs,
         base_idx);
