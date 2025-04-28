@@ -131,10 +131,12 @@ public:
     }
 
     void set_device(int d, bool reset = true) {
-        CHECK_FAIL(d >= 0 && d < device_count_);
-        if (stream_) stream_end();
-        current_device_ = d;
-        CHECK_FAIL(cudaSetDevice(current_device_) == 0);
+        if (current_device_ != d) {
+            CHECK_FAIL(d >= 0 && d < device_count_);
+            if (stream_) stream_end();
+            current_device_ = d;
+            CHECK_FAIL(cudaSetDevice(current_device_) == 0);
+        }
         if (reset) reset_device();
     }
 
@@ -277,6 +279,7 @@ private:
         }
         std::cout << std::endl;
 #endif
+        current_device_ = -1;
         set_device(0);
         sync_mode_ = true;
     }
