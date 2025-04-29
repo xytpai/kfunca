@@ -28,7 +28,6 @@ jobs:
           nvcc --version
           nvidia-smi
           pip install -r requirements.txt
-          rm -rf /home/xytpai/miniconda3/envs/ci/lib/python3.11/site-packages/kfunca.egg-link
           python setup.py develop
           for f in build/test_*.out; do ./"$f"; done
           which python
