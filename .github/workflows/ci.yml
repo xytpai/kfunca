@@ -28,7 +28,7 @@ jobs:
           nvcc --version
           nvidia-smi
           pip install -r requirements.txt
-          python setup.py develop
+          python setup.py install
           for f in build/test_*.out; do ./"$f"; done
           which python
           python -c "import kfunca; print(kfunca.__file__)"
