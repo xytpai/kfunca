@@ -13,6 +13,14 @@
 
 using namespace utils::memory;
 
+std::ostream &operator<<(std::ostream &os, const dim_t &d) {
+    os << "dim_t:";
+    for (int i = 0; i < MAX_TENSOR_DIMS; i++)
+        os << d[i] << ", ";
+    os << "\n";
+    return os;
+}
+
 Tensor::Tensor(std::vector<int64_t> &shape, ScalarType dtype) {
     CHECK_FAIL(shape.size() <= MAX_TENSOR_DIMS);
     dtype_ = dtype;
@@ -143,16 +151,32 @@ Tensor Tensor::operator+(const Tensor &other) const {
     return gpu::add(*this, other);
 }
 
+Tensor &Tensor::operator+=(const Tensor &other) {
+    return gpu::add_(*this, other);
+}
+
 Tensor Tensor::operator-(const Tensor &other) const {
     return gpu::sub(*this, other);
+}
+
+Tensor &Tensor::operator-=(const Tensor &other) {
+    return gpu::sub_(*this, other);
 }
 
 Tensor Tensor::operator*(const Tensor &other) const {
     return gpu::mul(*this, other);
 }
 
+Tensor &Tensor::operator*=(const Tensor &other) {
+    return gpu::mul_(*this, other);
+}
+
 Tensor Tensor::operator/(const Tensor &other) const {
     return gpu::div(*this, other);
+}
+
+Tensor &Tensor::operator/=(const Tensor &other) {
+    return gpu::div_(*this, other);
 }
 
 Tensor Tensor::sum(int64_t reduce_dim) const {
