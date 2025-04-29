@@ -22,7 +22,7 @@ std::ostream &operator<<(std::ostream &os, const Tensor &t);
 
 template <typename T, int vec_size>
 struct d_array {
-    T val[vec_size];
+    T val[vec_size] = {0};
     T &operator[](int i) {
         return val[i];
     }
@@ -51,6 +51,7 @@ struct d_array {
 
 typedef d_array<int64_t, MAX_TENSOR_DIMS> dim_t;
 using any_t = d_array<char, 256>;
+std::ostream &operator<<(std::ostream &os, const dim_t &d);
 
 class TensorStorage : public intrusive_ptr_target {
 protected:
@@ -183,9 +184,13 @@ public:
     int64_t offset(const std::vector<int64_t> &indices) const;
 
     Tensor operator+(const Tensor &other) const;
+    Tensor &operator+=(const Tensor &other);
     Tensor operator-(const Tensor &other) const;
+    Tensor &operator-=(const Tensor &other);
     Tensor operator*(const Tensor &other) const;
+    Tensor &operator*=(const Tensor &other);
     Tensor operator/(const Tensor &other) const;
+    Tensor &operator/=(const Tensor &other);
     Tensor sum(int64_t reduce_dim) const;
     Tensor mean(int64_t reduce_dim) const;
 };

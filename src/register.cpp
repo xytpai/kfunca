@@ -98,9 +98,13 @@ PYBIND11_MODULE(kfunca, m) {
         })
         .def("storage_ref_count", &Tensor::storage_ref_count)
         .def("__add__", &Tensor::operator+)
+        .def("__iadd__", &Tensor::operator+=)
         .def("__sub__", &Tensor::operator-)
+        .def("__isub__", &Tensor::operator-=)
         .def("__mul__", &Tensor::operator*)
+        .def("__imul__", &Tensor::operator*=)
         .def("__truediv__", &Tensor::operator/)
+        .def("__itruediv__", &Tensor::operator/=)
         .def("sum", &Tensor::sum)
         .def("mean", &Tensor::mean);
 }

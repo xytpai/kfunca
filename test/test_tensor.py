@@ -24,6 +24,31 @@ class TestTensorImpl(object):
             out_gpu = kfunca.from_numpy(arr1, 0) + kfunca.from_numpy(arr2, 0)
             assert(np.allclose(out, out_gpu.numpy()) == True)
 
+    def test_inplace_op(self):
+        shape1 = (5,7,11)
+        shape2 = (5,1,11)
+        arr1 = np.random.uniform(-10, 10, size=shape1).astype(np.float32)
+        arr2 = np.random.uniform(-10, 10, size=shape2).astype(np.float32)
+        arr1_gpu = kfunca.from_numpy(arr1, 0)
+        addr1 = arr1_gpu.data_ptr()
+        arr2_gpu = kfunca.from_numpy(arr2, 0)
+        arr1 += arr2
+        arr1_gpu += arr2_gpu
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        arr1 -= arr2
+        arr1_gpu -= arr2_gpu
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        arr1 *= arr2
+        arr1_gpu *= arr2_gpu
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        arr1 /= arr2
+        arr1_gpu /= arr2_gpu
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+
     def test_data_ptr(self):
         import copy
         arr_ = np.random.uniform(-10, 10, size=(3,4)).astype(np.float32)
