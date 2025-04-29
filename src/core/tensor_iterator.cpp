@@ -339,6 +339,7 @@ std::ostream &operator<<(std::ostream &os, const TensorIterator &iter) {
 TensorIterator::TensorIterator() {
     for (int i = 0; i < MAX_TENSOR_DIMS; i++) {
         view_offsets_[i] = 0;
+        shape_[i] = 0;
     }
 }
 
