@@ -15,7 +15,13 @@ struct Block {
     int device{-1};
     bool in_use{false};
     Block *next{nullptr};
+    uint32_t id;
+    static uint32_t next_id;
+    Block() :
+        id(next_id++) {
+    }
 };
+uint32_t Block::next_id = 0;
 
 class DeviceAllocator {
     enum {

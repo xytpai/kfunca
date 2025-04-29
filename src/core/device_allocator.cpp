@@ -37,7 +37,7 @@ void DeviceAllocator::print() {
         std::cout << "[" << l_size << ", " << h_size << "):";
         Block *current = &pool_[p];
         while (current != nullptr) {
-            std::cout << current->size << ":" << current->in_use << "->";
+            std::cout << current->id << ":" << current->size << ":" << current->in_use << "->";
             current = current->next;
         }
         std::cout << std::endl;
@@ -47,10 +47,11 @@ void DeviceAllocator::print() {
 DataPtr DeviceAllocator::allocate(const size_t size, int device) {
     dset_device(device);
     size_t aligned_size = (size + ALIGNMENT - 1) / ALIGNMENT * ALIGNMENT;
-    Block *block_ptr = _find_prev_block(aligned_size);
-    if (block_ptr->size == aligned_size && !block_ptr->in_use) {
-        block_ptr->in_use = true;
-        return {block_ptr->ptr, block_ptr->ptr, delete_impl};
+    Block *prev_block_ptr = _find_prev_block(aligned_size);
+    if (prev_block_ptr->next && prev_block_ptr->next->size == aligned_size
+        && !prev_block_ptr->next->in_use) {
+        prev_block_ptr->next->in_use = true;
+        return {prev_block_ptr->next->ptr, prev_block_ptr->next->ptr, delete_impl};
     } else {
         auto raw_ptr = dmalloc(aligned_size);
         auto new_block_ptr = new Block();
@@ -58,8 +59,8 @@ DataPtr DeviceAllocator::allocate(const size_t size, int device) {
         new_block_ptr->size = aligned_size;
         new_block_ptr->device = device;
         new_block_ptr->in_use = true;
-        new_block_ptr->next = block_ptr->next;
-        block_ptr->next = new_block_ptr;
+        new_block_ptr->next = prev_block_ptr->next;
+        prev_block_ptr->next = new_block_ptr;
         ptr_to_block_[raw_ptr] = new_block_ptr;
         return {new_block_ptr->ptr, new_block_ptr->ptr, delete_impl};
     }

@@ -8,7 +8,10 @@ using namespace utils::memory;
 int main() {
     std::cout << __FILE__ << std::endl;
     auto allocator = DeviceAllocator::GetInstance();
-    auto ptr = allocator->allocate(4095, 0);
+    {
+        auto ptr = allocator->allocate(4095, 0);
+    }
     auto ptr2 = allocator->allocate(4095, 0);
+    auto ptr3 = allocator->allocate(4095, 0);
     allocator->print();
 }
