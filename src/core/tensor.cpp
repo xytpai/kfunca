@@ -13,6 +13,35 @@
 
 using namespace utils::memory;
 
+Tensor::Tensor(std::vector<int64_t> &shape, ScalarType dtype) {
+    CHECK_FAIL(shape.size() <= MAX_TENSOR_DIMS);
+    dtype_ = dtype;
+    dim_ = shape.size();
+    numel_ = 1;
+    for (int i = dim_ - 1; i >= 0; i--) {
+        stride_[i] = numel_;
+        numel_ *= shape[i];
+        shape_[i] = shape[i];
+    }
+}
+
+Tensor::Tensor(int64_t *shape, int ndim, ScalarType dtype, bool inverse) {
+    CHECK_FAIL(ndim <= MAX_TENSOR_DIMS);
+    dtype_ = dtype;
+    dim_ = ndim;
+    numel_ = 1;
+    int is;
+    for (int i = dim_ - 1; i >= 0; i--) {
+        stride_[i] = numel_;
+        if (!inverse)
+            is = i;
+        else
+            is = dim_ - 1 - i;
+        numel_ *= shape[is];
+        shape_[i] = shape[is];
+    }
+}
+
 void Tensor::copy_from_cpu_ptr(void *ptr) {
     dmemcpy_h2d(data_ptr(), ptr, storage_bytes());
 }
@@ -31,6 +60,15 @@ any_t Tensor::item(const std::vector<int64_t> &indices) const {
             sizeof(scalar_t));
     });
     return buffer;
+}
+
+int64_t Tensor::offset(const std::vector<int64_t> &indices) const {
+    CHECK_FAIL(indices.size() == dim_);
+    int64_t flat_index = 0;
+    for (size_t i = 0; i < indices.size(); ++i) {
+        flat_index += indices[i] * stride_[i];
+    }
+    return flat_index;
 }
 
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device) {
