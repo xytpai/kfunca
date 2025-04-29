@@ -28,6 +28,9 @@ jobs:
           nvcc --version
           nvidia-smi
           pip install -r requirements.txt
+          pip uninstall -y kfunca
+          pip uninstall -y kfunca
+          pip uninstall -y kfunca
           python setup.py install
           for f in build/test_*.out; do ./"$f"; done
           which python

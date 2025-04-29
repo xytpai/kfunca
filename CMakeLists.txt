@@ -28,7 +28,7 @@ add_library(kfunca_core SHARED ${CORE_SRCS})
 message(pybind11_DIR)
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(kfunca src/kfunca.cpp)
+pybind11_add_module(kfunca src/register.cpp)
 target_link_libraries(kfunca PRIVATE kfunca_core kfunca_device)
 
 file(GLOB TEST_SRCS "test/core/*.cpp")
