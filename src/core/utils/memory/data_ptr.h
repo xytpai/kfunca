@@ -11,9 +11,8 @@ inline void delete_nothing(void *) {
 
 class DataPtr {
 private:
-    // Lifetime tied to ctx_
-    void *data_;
-    std::unique_ptr<void, DeleterFnPtr> ctx_;
+    void *data_;                              // Lifetime tied to ctx_
+    std::unique_ptr<void, DeleterFnPtr> ctx_; // For automatic release
 
 public:
     DataPtr() :

@@ -131,10 +131,12 @@ public:
     }
 
     void set_device(int d, bool reset = true) {
-        CHECK_FAIL(d >= 0 && d < device_count_);
-        if (stream_) stream_end();
-        current_device_ = d;
-        CHECK_FAIL(cudaSetDevice(current_device_) == 0);
+        if (current_device_ != d) {
+            CHECK_FAIL(d >= 0 && d < device_count_);
+            if (stream_) stream_end();
+            current_device_ = d;
+            CHECK_FAIL(cudaSetDevice(current_device_) == 0);
+        }
         if (reset) reset_device();
     }
 
@@ -149,26 +151,32 @@ public:
         return ptr;
     }
 
+    void *malloc_(size_t size) {
+        void *ptr = nullptr;
+        CHECK_FAIL(cudaMalloc(&ptr, size) == 0);
+        return ptr;
+    }
+
     void free(void *ptr) {
         if (ptr) CHECK_FAIL(cudaFree(ptr) == 0);
     }
 
-    void memcpy(void *dst, const void *src, size_t len, COPY dir, bool sync = true) {
+    void memcpy(void *dst, const void *src, size_t size, COPY dir, bool sync = true) {
         bool need_new_stream = stream_ != 0 ? false : true;
         if (need_new_stream) stream_begin();
         switch (dir) {
         case COPY::H2D:
-            CHECK_FAIL(cudaMemcpyAsync(dst, src, len * sizeof(char),
+            CHECK_FAIL(cudaMemcpyAsync(dst, src, size,
                                        cudaMemcpyHostToDevice, (cudaStream_t)stream_)
                        == 0);
             break;
         case COPY::D2H:
-            CHECK_FAIL(cudaMemcpyAsync(dst, src, len * sizeof(char),
+            CHECK_FAIL(cudaMemcpyAsync(dst, src, size,
                                        cudaMemcpyDeviceToHost, (cudaStream_t)stream_)
                        == 0);
             break;
         case COPY::D2D:
-            CHECK_FAIL(cudaMemcpyAsync(dst, src, len * sizeof(char),
+            CHECK_FAIL(cudaMemcpyAsync(dst, src, size,
                                        cudaMemcpyDeviceToDevice, (cudaStream_t)stream_)
                        == 0);
             break;
@@ -242,6 +250,7 @@ public:
 
 private:
     Launcher() {
+        current_device_ = -1;
         // Need intrinsic API
         srand((unsigned)time(0));
         stream_ = 0;
@@ -270,6 +279,7 @@ private:
         }
         std::cout << std::endl;
 #endif
+        current_device_ = -1;
         set_device(0);
         sync_mode_ = true;
     }
