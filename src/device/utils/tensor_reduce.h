@@ -11,7 +11,6 @@
 #include "exception.h"
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
-#include "tensor_storage.h"
 #include "device_allocator.h"
 
 // returns reduced fraction numerator & denominator

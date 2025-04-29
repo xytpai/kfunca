@@ -3,7 +3,6 @@
 #include <vector>
 
 #include "tensor.h"
-#include "tensor_storage.h"
 #include "exception.h"
 #include "data_ptr.h"
 #include "intrusive_ptr.h"

@@ -8,7 +8,7 @@
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
 #include "scalar_type.h"
-#include "tensor_storage.h"
+#include "device_allocator.h"
 
 #define MAX_TENSOR_DIMS 12
 
@@ -51,6 +51,38 @@ struct d_array {
 
 typedef d_array<int64_t, MAX_TENSOR_DIMS> dim_t;
 using any_t = d_array<char, 256>;
+
+class TensorStorage : public intrusive_ptr_target {
+protected:
+    size_t size_;
+    int device_;
+    DataPtr ptr_;
+
+public:
+    TensorStorage() :
+        size_(0), device_(-1), ptr_() {
+    }
+    TensorStorage(size_t size, int device) :
+        size_(size), device_(device) {
+        ptr_ = DeviceAllocator::GetInstance()->allocate(size, device);
+    }
+    size_t size() const {
+        return size_;
+    }
+    int device() const {
+        return device_;
+    }
+    void *data_ptr() const {
+        return ptr_.get();
+    }
+    template <typename T>
+    T *data_ptr() const {
+        return reinterpret_cast<T *>(ptr_.get());
+    }
+    bool defined() const {
+        return static_cast<bool>(ptr_);
+    }
+};
 
 class Tensor {
     int dim_;

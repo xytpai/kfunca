@@ -21,7 +21,6 @@ struct Block {
         id(next_id++) {
     }
 };
-uint32_t Block::next_id = 0;
 
 class DeviceAllocator {
     enum {

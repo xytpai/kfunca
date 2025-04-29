@@ -3,6 +3,7 @@
 #include <cassert>
 
 #include "tensor.h"
+#include "device_allocator.h"
 
 int main() {
     std::cout << __FILE__ << std::endl;
@@ -20,4 +21,5 @@ int main() {
     for (int i = 0; i < 15; i++) {
         assert(tensor_data[i] == out[i] / 2);
     }
+    DeviceAllocator::GetInstance()->print();
 }

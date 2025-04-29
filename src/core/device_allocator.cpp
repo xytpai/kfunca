@@ -7,6 +7,8 @@ using namespace utils::memory;
 
 static void delete_impl(void *ptr);
 
+uint32_t Block::next_id = 0;
+
 int DeviceAllocator::_find_pool_index(size_t size) const {
     int idx;
     for (idx = 0; idx < POOL_SIZE; idx++) {
