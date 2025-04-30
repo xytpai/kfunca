@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <tuple>
 
 #include "exception.h"
 #include "data_ptr.h"
@@ -193,4 +194,5 @@ public:
     Tensor &operator/=(const Tensor &other);
     Tensor sum(int64_t reduce_dim) const;
     Tensor mean(int64_t reduce_dim) const;
+    std::tuple<Tensor, Tensor> mean_var(int64_t reduce_dim, bool take_sqrt) const;
 };

@@ -7,6 +7,7 @@
 #include "device_info.h"
 #include "tensor.h"
 #include "binary_ops.h"
+#include "device_allocator.h"
 
 namespace py = pybind11;
 
@@ -53,6 +54,9 @@ py::array to_numpy(const Tensor &t) {
 
 PYBIND11_MODULE(kfunca, m) {
     m.def("device_info", &device_info);
+    m.def("memstat", []() {
+        DeviceAllocator::GetInstance()->print();
+    });
     py::enum_<ScalarType>(m, "dtype")
         .value("byte", ScalarType::Byte)
         .value("char", ScalarType::Char)
@@ -106,5 +110,6 @@ PYBIND11_MODULE(kfunca, m) {
         .def("__truediv__", &Tensor::operator/)
         .def("__itruediv__", &Tensor::operator/=)
         .def("sum", &Tensor::sum)
-        .def("mean", &Tensor::mean);
+        .def("mean", &Tensor::mean)
+        .def("mean_var", &Tensor::mean_var);
 }
