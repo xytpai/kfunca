@@ -186,3 +186,7 @@ Tensor Tensor::sum(int64_t reduce_dim) const {
 Tensor Tensor::mean(int64_t reduce_dim) const {
     return gpu::mean(*this, reduce_dim);
 }
+
+std::tuple<Tensor, Tensor> Tensor::mean_var(int64_t reduce_dim, bool take_sqrt) const {
+    return gpu::mean_var(*this, reduce_dim, take_sqrt);
+}

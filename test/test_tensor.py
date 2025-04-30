@@ -97,6 +97,20 @@ class TestTensorImpl(object):
                 arr_gpu = kfunca.from_numpy(arr, 0)
                 arr_gpu_sum = eval("arr_gpu.{}(dim)".format(op))
                 assert(np.allclose(arr_sum, arr_gpu_sum.numpy(), rtol=1e-2, atol=1e-2) == True)
+    
+    def test_mean_std(self):
+        shape = (13, 325, 127)
+        dim = 1
+        arr = np.random.uniform(-10, 10, size=shape)
+        arr_ = kfunca.from_numpy(arr, 0)
+        divisor = shape[dim] - 1
+        mean = arr_.mean(dim)
+        var = ((arr_ - mean) * (arr_ - mean)).sum(dim)
+        var = var / kfunca.from_numpy(np.full_like(var.numpy(), fill_value=divisor), 0)
+        mean_var = arr_.mean_var(dim, False)
+        assert(np.allclose(mean.numpy(), mean_var[0].numpy(), rtol=1e-2, atol=1e-2) == True)
+        assert(np.allclose(var.numpy(), mean_var[1].numpy(), rtol=1e-2, atol=1e-2) == True)
+        kfunca.memstat()
 
 
 if __name__ == '__main__':
