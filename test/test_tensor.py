@@ -48,6 +48,22 @@ class TestTensorImpl(object):
         arr1_gpu /= arr2_gpu
         assert(addr1 == arr1_gpu.data_ptr())
         assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        arr1 += 2
+        arr1_gpu += 2
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        arr1 -= 3
+        arr1_gpu -= 3
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        arr1 *= 4
+        arr1_gpu *= 4
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        arr1 /= 5
+        arr1_gpu /= 5
+        assert(addr1 == arr1_gpu.data_ptr())
+        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
 
     def test_data_ptr(self):
         import copy

@@ -110,7 +110,8 @@ void TensorIterator::compute_broadcasted_shape() {
     for (int i = ndim_ - 1; i >= 0; --i) {
         bool is_first = true;
         int64_t sz;
-        for (int j = num_outputs_; j < num_tensors_; ++j) {
+        for (int j = 0; j < num_tensors_; ++j) {
+            if (!tensors_[j]->defined()) continue;
             if (is_first) {
                 sz = tensors_[j]->shape(i);
                 is_first = false;

@@ -18,12 +18,21 @@ using namespace utils::memory;
 class Tensor;
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse = false);
+Tensor empty_like(const Tensor &self);
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 std::ostream &operator<<(std::ostream &os, const Tensor &t);
 
 template <typename T, int vec_size>
 struct d_array {
     T val[vec_size] = {0};
+    d_array() {
+    }
+    d_array(double value) {
+        *reinterpret_cast<double *>(&val[0]) = value;
+    }
+    operator double() const {
+        return *reinterpret_cast<double *>(const_cast<T *>(&val[0]));
+    }
     T &operator[](int i) {
         return val[i];
     }
@@ -101,6 +110,7 @@ class Tensor {
     }
     friend Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device);
     friend Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse);
+    friend Tensor empty_like(const Tensor &self);
     friend Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device);
 
     Tensor(std::vector<int64_t> &shape, ScalarType dtype);
@@ -182,6 +192,7 @@ public:
     void copy_from_cpu_ptr(void *ptr);
     void copy_to_cpu_ptr(void *ptr) const;
     any_t item(const std::vector<int64_t> &indices) const;
+    Tensor &fill_(const any_t &value);
     int64_t offset(const std::vector<int64_t> &indices) const;
 
     Tensor operator+(const Tensor &other) const;
