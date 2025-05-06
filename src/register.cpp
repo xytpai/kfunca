@@ -70,6 +70,9 @@ PYBIND11_MODULE(kfunca, m) {
     m.def("empty", [](std::vector<int64_t> shape, ScalarType dtype, int device) {
         return empty(shape, dtype, device);
     });
+    m.def("empty_like", [](const Tensor &self) {
+        return empty_like(self);
+    });
     m.def("from_numpy", from_numpy);
     m.def("to_numpy", to_numpy);
     m.def("zeros", &zeros);
@@ -97,18 +100,49 @@ PYBIND11_MODULE(kfunca, m) {
             }
 #undef HANDLE_DTYPE
         })
+        .def("fill_", [](Tensor &self, double value) {
+            return self.fill_(any_t{value});
+        })
         .def("data_ptr", [](Tensor &self) -> uintptr_t {
             return reinterpret_cast<uintptr_t>(self.data_ptr());
         })
         .def("storage_ref_count", &Tensor::storage_ref_count)
         .def("__add__", &Tensor::operator+)
+        .def("__add__", [](const Tensor &self, double scalar) {
+            return self + empty_like(self).fill_(any_t{scalar});
+        })
         .def("__iadd__", &Tensor::operator+=)
+        .def("__iadd__", [](Tensor &self, double scalar) {
+            self += empty_like(self).fill_(any_t{scalar});
+            return self;
+        })
         .def("__sub__", &Tensor::operator-)
+        .def("__sub__", [](const Tensor &self, double scalar) {
+            return self - empty_like(self).fill_(any_t{scalar});
+        })
         .def("__isub__", &Tensor::operator-=)
+        .def("__isub__", [](Tensor &self, double scalar) {
+            self -= empty_like(self).fill_(any_t{scalar});
+            return self;
+        })
         .def("__mul__", &Tensor::operator*)
+        .def("__mul__", [](const Tensor &self, double scalar) {
+            return self * empty_like(self).fill_(any_t{scalar});
+        })
         .def("__imul__", &Tensor::operator*=)
+        .def("__imul__", [](Tensor &self, double scalar) {
+            self *= empty_like(self).fill_(any_t{scalar});
+            return self;
+        })
         .def("__truediv__", &Tensor::operator/)
+        .def("__truediv__", [](const Tensor &self, double scalar) {
+            return self / empty_like(self).fill_(any_t{scalar});
+        })
         .def("__itruediv__", &Tensor::operator/=)
+        .def("__itruediv__", [](Tensor &self, double scalar) {
+            self /= empty_like(self).fill_(any_t{scalar});
+            return self;
+        })
         .def("sum", &Tensor::sum)
         .def("mean", &Tensor::mean)
         .def("mean_var", &Tensor::mean_var);

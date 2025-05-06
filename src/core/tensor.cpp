@@ -9,6 +9,7 @@
 #include "scalar_type.h"
 #include "memory_engine.h"
 #include "binary_ops.h"
+#include "nullary_ops.h"
 #include "reduce_ops.h"
 
 using namespace utils::memory;
@@ -70,6 +71,10 @@ any_t Tensor::item(const std::vector<int64_t> &indices) const {
     return buffer;
 }
 
+Tensor &Tensor::fill_(const any_t &value) {
+    return gpu::fill_(*this, value);
+}
+
 int64_t Tensor::offset(const std::vector<int64_t> &indices) const {
     CHECK_FAIL(indices.size() == dim_);
     int64_t flat_index = 0;
@@ -88,6 +93,13 @@ Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device) {
 Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse) {
     Tensor output(shape, ndim, dtype, inverse);
     output.new_storage_(device);
+    return output;
+}
+
+Tensor empty_like(const Tensor &self) {
+    auto sizes = self.sizes();
+    Tensor output(sizes, self.dtype());
+    output.new_storage_(self.device());
     return output;
 }
 

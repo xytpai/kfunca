@@ -81,6 +81,11 @@ public:
     std::unique_ptr<TensorIterator> split(int dim);
     SplitUntil32Bit with_32bit_indexing() const;
 
+    TensorIterator &resize_outputs(bool flag) {
+        resize_outputs_ = false;
+        return *this;
+    }
+
     TensorIterator &build();
     TensorIterator &build_for_loops();
     TensorIterator &build_for_reduce(int64_t reduce_dim);
