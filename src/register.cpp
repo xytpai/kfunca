@@ -145,5 +145,6 @@ PYBIND11_MODULE(kfunca, m) {
         })
         .def("sum", &Tensor::sum)
         .def("mean", &Tensor::mean)
-        .def("mean_var", &Tensor::mean_var);
+        .def("mean_var", &Tensor::mean_var)
+        .def("norm_stat", &Tensor::norm_stat);
 }

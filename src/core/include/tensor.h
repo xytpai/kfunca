@@ -19,6 +19,7 @@ class Tensor;
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse = false);
 Tensor empty_like(const Tensor &self);
+Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype);
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 std::ostream &operator<<(std::ostream &os, const Tensor &t);
 
@@ -111,6 +112,7 @@ class Tensor {
     friend Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device);
     friend Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse);
     friend Tensor empty_like(const Tensor &self);
+    friend Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype);
     friend Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device);
 
     Tensor(std::vector<int64_t> &shape, ScalarType dtype);
@@ -206,4 +208,5 @@ public:
     Tensor sum(int64_t reduce_dim) const;
     Tensor mean(int64_t reduce_dim) const;
     std::tuple<Tensor, Tensor> mean_var(int64_t reduce_dim, bool take_sqrt) const;
+    std::tuple<Tensor, Tensor> norm_stat(int64_t dim) const;
 };
