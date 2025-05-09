@@ -120,25 +120,47 @@ struct WelfordNormPFKernel {
             acc_vec_t invstd_vec;
 #pragma unroll
             for (int v = 0; v < VEC_SIZE; ++v) {
-                invstd_vec[v] = m2n[v] / count[v];
+                invstd_vec[v] = (acc_t)1.0 / std::sqrt(m2n[v] / count[v] + eps_);
             }
             *reinterpret_cast<acc_vec_t *>(&save_mean_[batch_vec_offset]) = mean;
             *reinterpret_cast<acc_vec_t *>(&save_invstd_[batch_vec_offset]) = invstd_vec;
+
+            if (running_mean_ != nullptr) {
+                auto running_mean_vec = *reinterpret_cast<vec_t *>(&running_mean_[batch_vec_offset]);
+#pragma unroll
+                for (int v = 0; v < VEC_SIZE; ++v) {
+                    running_mean_vec[v] = mean[v] * momentum_ + (1 - momentum_) * running_mean_vec[v];
+                }
+                *reinterpret_cast<vec_t *>(&running_mean_[batch_vec_offset]) = running_mean_vec;
+            }
+
+            if (running_var_ != nullptr) {
+                auto running_var_vec = *reinterpret_cast<vec_t *>(&running_var_[batch_vec_offset]);
+#pragma unroll
+                for (int v = 0; v < VEC_SIZE; ++v) {
+                    auto unbiased_var = m2n[v] / (count[v] - 1);
+                    running_var_vec[v] = unbiased_var * momentum_ + (1 - momentum_) * running_var_vec[v];
+                }
+                *reinterpret_cast<vec_t *>(&running_var_[batch_vec_offset]) = running_var_vec;
+            }
         }
     }
 
     WelfordNormPFKernel(const scalar_t *input,
-                        acc_t *save_mean,
-                        acc_t *save_invstd,
                         int batch_size,
                         int problem_size,
+                        acc_t eps,
+                        acc_t *save_mean,
+                        acc_t *save_invstd,
                         acc_t *staging_data = nullptr,
                         int *semaphores = nullptr) :
         input_(input),
+        batch_size_(batch_size), problem_size_(problem_size), eps_(eps),
         save_mean_(save_mean),
-        save_invstd_(save_invstd), batch_size_(batch_size),
-        problem_size_(problem_size), staging_data_(staging_data),
-        semaphores_(semaphores) {
+        save_invstd_(save_invstd),
+        staging_data_(staging_data),
+        semaphores_(semaphores),
+        running_mean_(nullptr), running_var_(nullptr) {
     }
 
     void init() {
@@ -194,6 +216,12 @@ struct WelfordNormPFKernel {
         semaphores_ = semaphores;
     }
 
+    void set_running_mean_var(scalar_t *running_mean, scalar_t *running_var, acc_t momentum) {
+        running_mean_ = running_mean;
+        running_var_ = running_var;
+        momentum_ = momentum;
+    }
+
     int num_cooperative_groups() const {
         return nblocks_y_;
     }
@@ -233,12 +261,17 @@ struct WelfordNormPFKernel {
 
 private:
     const scalar_t *input_;
-    acc_t *save_mean_;
-    acc_t *save_invstd_;
     int batch_size_;
     int problem_size_;
+    acc_t eps_;
+    acc_t *save_mean_;
+    acc_t *save_invstd_;
     acc_t *staging_data_;
     int *semaphores_;
+
+    scalar_t *running_mean_;
+    scalar_t *running_var_;
+    acc_t momentum_;
 
     int block_size_y_;
     int block_size_x_;

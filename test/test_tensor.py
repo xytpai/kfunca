@@ -137,10 +137,10 @@ class TestTensorImpl(object):
             mean = np.mean(arr, axis=dim, keepdims=True)
             var = ((arr - mean) * (arr - mean))
             var = np.sum(var, axis=dim, keepdims=True)
-            var = var / divisor
-            mean_var = arr_.norm_stat(dim)
-            assert(np.allclose(mean, mean_var[0].numpy(), rtol=1e-3, atol=1e-3) == True)
-            assert(np.allclose(var, mean_var[1].numpy(), rtol=1e-3, atol=1e-3) == True)
+            invstd = 1.0 / np.sqrt(var / divisor)
+            mean_invstd = arr_.norm_stat(dim)
+            assert(np.allclose(mean, mean_invstd[0].numpy(), rtol=1e-3, atol=1e-3) == True)
+            assert(np.allclose(invstd, mean_invstd[1].numpy(), rtol=1e-3, atol=1e-3) == True)
 
 
 if __name__ == '__main__':

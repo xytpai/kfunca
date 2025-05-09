@@ -18,7 +18,7 @@ std::tuple<Tensor, Tensor> norm_stat_kernel(const Tensor &self, const int dim) {
     {                                                                                                    \
         using KernelT = WelfordNormPFKernel<scalar_t, acc_t, VEC_SIZE>;                                  \
         if (KernelT::valid(batch_size, problem_size, input_, save_mean_, save_invstd_)) {                \
-            auto kernel = KernelT(input_, save_mean_, save_invstd_, batch_size, problem_size);           \
+            auto kernel = KernelT(input_, batch_size, problem_size, eps, save_mean_, save_invstd_);      \
             kernel.init();                                                                               \
             auto block_range = kernel.get_block_range_yx();                                              \
             auto block_size = kernel.get_block_size_yx();                                                \
@@ -33,6 +33,7 @@ std::tuple<Tensor, Tensor> norm_stat_kernel(const Tensor &self, const int dim) {
         auto input_ = (scalar_t *)self.data_ptr();
         auto save_mean_ = (acc_t *)save_mean.data_ptr();
         auto save_invstd_ = (acc_t *)save_invstd.data_ptr();
+        acc_t eps = 1e-12;
 
         CALL_VEC(4)
         CALL_VEC(2)
