@@ -129,7 +129,7 @@ class TestTensorImpl(object):
         kfunca.memstat()
     
     def test_norm_stat(self):
-        for shape in [[1024, 2048], [4096, 4096], [4096*4, 4096*4]]:
+        for shape in [[64, 64], [1024, 2048], [4096, 4096], [4096*4+3, 4096*4+3]]:
             dim = 0
             arr = np.random.uniform(-10, 10, size=shape).astype(np.float32)
             arr_ = kfunca.from_numpy(arr, 0)

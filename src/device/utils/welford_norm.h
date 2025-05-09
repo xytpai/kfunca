@@ -159,6 +159,7 @@ struct WelfordNormPFKernel {
         const scalar_t *input,
         acc_t *save_mean,
         acc_t *save_invstd) {
+        if (VEC_SIZE <= 1) return true;
         bool valid = sizeof(scalar_t) <= 4;
         valid = valid && (batch_size % VEC_SIZE == 0);
         valid = valid && (memory_access::can_vectorize_up_to<scalar_t>((char *)input) >= VEC_SIZE);
