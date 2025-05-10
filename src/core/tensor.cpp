@@ -11,6 +11,7 @@
 #include "binary_ops.h"
 #include "nullary_ops.h"
 #include "reduce_ops.h"
+#include "norm_ops.h"
 
 using namespace utils::memory;
 
@@ -99,6 +100,16 @@ Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool invers
 Tensor empty_like(const Tensor &self) {
     auto sizes = self.sizes();
     Tensor output(sizes, self.dtype());
+    output.new_storage_(self.device());
+    return output;
+}
+
+Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype) {
+    auto sizes = self.sizes();
+    if (dim >= 0) {
+        sizes[dim] = 1;
+    }
+    Tensor output(sizes, dtype);
     output.new_storage_(self.device());
     return output;
 }
@@ -201,4 +212,8 @@ Tensor Tensor::mean(int64_t reduce_dim) const {
 
 std::tuple<Tensor, Tensor> Tensor::mean_var(int64_t reduce_dim, bool take_sqrt) const {
     return gpu::mean_var(*this, reduce_dim, take_sqrt);
+}
+
+std::tuple<Tensor, Tensor> Tensor::norm_stat(int64_t dim) const {
+    return gpu::norm_stat(*this, dim);
 }

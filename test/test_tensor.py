@@ -122,11 +122,25 @@ class TestTensorImpl(object):
         divisor = shape[dim] - 1
         mean = arr_.mean(dim)
         var = ((arr_ - mean) * (arr_ - mean)).sum(dim)
-        var = var / kfunca.from_numpy(np.full_like(var.numpy(), fill_value=divisor), 0)
+        var = var / divisor
         mean_var = arr_.mean_var(dim, False)
         assert(np.allclose(mean.numpy(), mean_var[0].numpy(), rtol=1e-2, atol=1e-2) == True)
         assert(np.allclose(var.numpy(), mean_var[1].numpy(), rtol=1e-2, atol=1e-2) == True)
         kfunca.memstat()
+    
+    def test_norm_stat(self):
+        for shape in [[64, 64], [1024, 2048], [4096, 4096], [4096*4+3, 4096*4+3]]:
+            dim = 0
+            arr = np.random.uniform(-10, 10, size=shape).astype(np.float32)
+            arr_ = kfunca.from_numpy(arr, 0)
+            divisor = shape[dim]
+            mean = np.mean(arr, axis=dim, keepdims=True)
+            var = ((arr - mean) * (arr - mean))
+            var = np.sum(var, axis=dim, keepdims=True)
+            invstd = 1.0 / np.sqrt(var / divisor)
+            mean_invstd = arr_.norm_stat(dim)
+            assert(np.allclose(mean, mean_invstd[0].numpy(), rtol=1e-3, atol=1e-3) == True)
+            assert(np.allclose(invstd, mean_invstd[1].numpy(), rtol=1e-3, atol=1e-3) == True)
 
 
 if __name__ == '__main__':
