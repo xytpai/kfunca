@@ -84,6 +84,9 @@ struct ITEM {
     DEVICE_INLINE char *shared_ptr() {
         return smem_;
     };
+    DEVICE_INLINE int fetch_atomic_add(int *addr, int val) {
+        return atomicAdd(addr, val);
+    }
 
 private:
     char *smem_;

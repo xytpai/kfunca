@@ -46,8 +46,7 @@ std::tuple<int, int, int, int> get_adaptive_config(
 
     // it's not worth having reduction between blocks if the reduction
     // dimension is not big enough
-    // nblock_y = nblock_y < 4 ? 1 : nblock_y;
-    nblock_y = 1;
+    nblock_y = nblock_y < 4 ? 1 : nblock_y;
 
     return std::make_tuple(block_size_y, block_size_x, nblock_y, nblock_x);
 }
@@ -113,9 +112,66 @@ struct WelfordNormPFKernel {
         auto shmem_mean = reinterpret_cast<acc_vec_t *>(item.shared_ptr());
         auto shmem_m2n = shmem_mean + block_size;
         auto shmem_count = reinterpret_cast<int_vec_t *>(shmem_m2n + block_size);
+        auto is_last_block_done = reinterpret_cast<bool *>(shmem_count + block_size);
         welford_vertical_merge(item, count, mean, m2n, shmem_count, shmem_mean, shmem_m2n);
-        // if (num_cooperative_blocks > 1) {
-        // }
+
+        if (num_cooperative_blocks > 1) {
+            acc_t *staging_mean = staging_data_;
+            acc_t *staging_m2n = &staging_data_[batch_size_ * num_cooperative_blocks];
+            int *staging_count = reinterpret_cast<int *>(
+                &staging_m2n[batch_size_ * num_cooperative_blocks]);
+            int address_vec_base = batch_vec_offset + by * batch_size_;
+
+            // write data to staging_data;
+            if (item.thread_idx_y() == 0 && batch_vec_offset < batch_size_) {
+                *reinterpret_cast<acc_vec_t *>(&staging_mean[address_vec_base]) = mean;
+                *reinterpret_cast<acc_vec_t *>(&staging_m2n[address_vec_base]) = m2n;
+                *reinterpret_cast<int_vec_t *>(&staging_count[address_vec_base]) = count;
+            }
+
+            item.barrier();
+            item.memory_order_fence();
+
+            // mark group done
+            if (item.thread_idx_x() == 0 && item.thread_idx_y() == 0) {
+                int old = item.fetch_atomic_add(&semaphores_[item.block_idx_x()], 1);
+                is_last_block_done[0] = (old == (num_cooperative_blocks - 1));
+            }
+            item.barrier();
+
+            // check that all data is now available in global memory
+            if (is_last_block_done[0]) {
+#pragma unroll
+                for (int v = 0; v < VEC_SIZE; ++v) {
+                    mean[v] = acc_t(0);
+                    m2n[v] = acc_t(0);
+                    count[v] = int(0);
+                }
+                for (int y = item.thread_idx_y(); y < num_cooperative_blocks; y += item.thread_range_y()) {
+                    if (batch_vec_offset < batch_size_) {
+                        address_vec_base = y * batch_size_ + batch_vec_offset;
+                        auto mean_new =
+                            *reinterpret_cast<acc_vec_t *>(&staging_mean[address_vec_base]);
+                        auto m2n_new =
+                            *reinterpret_cast<acc_vec_t *>(&staging_m2n[address_vec_base]);
+                        auto count_new =
+                            *reinterpret_cast<int_vec_t *>(&staging_count[address_vec_base]);
+#pragma unroll
+                        for (int v = 0; v < VEC_SIZE; ++v) {
+                            welford_merge(
+                                count[v],
+                                mean[v],
+                                m2n[v],
+                                count_new[v],
+                                mean_new[v],
+                                m2n_new[v]);
+                        }
+                    }
+                }
+                welford_vertical_merge(item, count, mean, m2n, shmem_count, shmem_mean, shmem_m2n);
+            }
+        }
+
         if (item.thread_idx_y() == 0 && batch_vec_offset < batch_size_) {
             acc_vec_t invstd_vec;
 #pragma unroll
@@ -151,15 +207,11 @@ struct WelfordNormPFKernel {
                         int problem_size,
                         acc_t eps,
                         acc_t *save_mean,
-                        acc_t *save_invstd,
-                        acc_t *staging_data = nullptr,
-                        int *semaphores = nullptr) :
+                        acc_t *save_invstd) :
         input_(input),
         batch_size_(batch_size), problem_size_(problem_size), eps_(eps),
-        save_mean_(save_mean),
-        save_invstd_(save_invstd),
-        staging_data_(staging_data),
-        semaphores_(semaphores),
+        save_mean_(save_mean), save_invstd_(save_invstd),
+        staging_data_(nullptr), semaphores_(nullptr),
         running_mean_(nullptr), running_var_(nullptr) {
     }
 
