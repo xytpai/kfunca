@@ -26,27 +26,31 @@ std::tuple<int, int, int, int> get_adaptive_config(
     const int problem_size,
     const int batch_size,
     const int vec_size,
-    int max_wg_size,
-    int loops_per_item = 8) {
-    loops_per_item /= vec_size;
-    int block_size_x = std::min(last_pow2(batch_size / vec_size), 32);
-    int block_size_y = std::min(
-        last_pow2(divup(problem_size, loops_per_item)), max_wg_size / block_size_x);
-    if (block_size_x * block_size_y != max_wg_size) {
+    const int max_block_size,
+    int loops_per_thread = 8,
+    int coop_th = 8) {
+    loops_per_thread /= vec_size; // Ensure the number of instructions is normalized
+    int threads_along_batch = last_pow2(batch_size / vec_size);
+    int threads_along_problem = last_pow2(divup(problem_size, loops_per_thread));
+
+    int block_size_x = std::min(threads_along_batch, GPU_WARP_SIZE);
+    int block_size_y = std::min(threads_along_problem, max_block_size / block_size_x);
+    if (block_size_x * block_size_y != max_block_size) {
         block_size_x =
-            std::min(last_pow2(batch_size / vec_size), max_wg_size / block_size_y);
+            std::min(threads_along_batch, max_block_size / block_size_y);
     }
 
     int max_threads_gpu = 4 * GPU_WARP_SIZE * Launcher::GetInstance()->multi_processor_count();
     int nblock_x = divup(batch_size, block_size_x * vec_size);
     int nblock_y = std::min(
-        divup(problem_size, block_size_y * loops_per_item),
+        divup(problem_size, block_size_y * loops_per_thread),
         max_threads_gpu / (nblock_x * block_size_x) / (block_size_y));
     nblock_y = std::max(nblock_y, 1);
 
     // it's not worth having reduction between blocks if the reduction
     // dimension is not big enough
-    nblock_y = nblock_y < 4 ? 1 : nblock_y;
+    coop_th /= vec_size;
+    nblock_y = nblock_y < coop_th ? 1 : nblock_y;
 
     return std::make_tuple(block_size_y, block_size_x, nblock_y, nblock_x);
 }
@@ -132,7 +136,7 @@ struct WelfordNormPFKernel {
             item.barrier();
             item.memory_order_fence();
 
-            // mark group done
+            // mark block done
             if (item.thread_idx_x() == 0 && item.thread_idx_y() == 0) {
                 int old = item.fetch_atomic_add(&semaphores_[item.block_idx_x()], 1);
                 is_last_block_done[0] = (old == (num_cooperative_blocks - 1));
@@ -274,7 +278,7 @@ struct WelfordNormPFKernel {
         momentum_ = momentum;
     }
 
-    int num_cooperative_groups() const {
+    int num_cooperative_blocks() const {
         return nblocks_y_;
     }
 
