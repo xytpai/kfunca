@@ -231,21 +231,6 @@ struct WelfordNormPFKernel {
         return local_size * (2 * sizeof(acc_vec_t) + sizeof(int_vec_t)) + 1;
     }
 
-    static bool valid(
-        int batch_size,
-        int problem_size,
-        const scalar_t *input,
-        acc_t *save_mean,
-        acc_t *save_invstd) {
-        if (VEC_SIZE <= 1) return true;
-        bool valid = sizeof(scalar_t) <= 4;
-        valid = valid && (batch_size % VEC_SIZE == 0);
-        valid = valid && (memory_access::can_vectorize_up_to<scalar_t>((char *)input) >= VEC_SIZE);
-        valid = valid && (memory_access::can_vectorize_up_to<acc_t>((char *)save_mean) >= VEC_SIZE);
-        valid = valid && (memory_access::can_vectorize_up_to<acc_t>((char *)save_invstd) >= VEC_SIZE);
-        return valid;
-    }
-
     std::tuple<int, int> get_block_size_yx() const {
         return std::make_tuple(block_size_y_, block_size_x_);
     }
@@ -334,3 +319,37 @@ private:
     int nblocks_y_;
     int nblocks_x_;
 };
+
+template <typename scalar_t, typename acc_t, typename running_t = char>
+int welford_norm_pf_kernel_vec_size(
+    int batch_size,
+    const scalar_t *input,
+    acc_t *save_mean,
+    acc_t *save_invstd,
+    running_t *running_mean = nullptr,
+    running_t *running_var = nullptr,
+    int max_vec_bytes = 8) {
+    if (sizeof(scalar_t) >= max_vec_bytes)
+        return 1;
+    int vec_size = max_vec_bytes / sizeof(scalar_t);
+
+    auto input_vec_size = memory_access::can_vectorize_up_to<scalar_t>((char *)input);
+    auto save_mean_vec_size =
+        memory_access::can_vectorize_up_to<acc_t>((char *)save_mean);
+    auto save_invstd_vec_size =
+        memory_access::can_vectorize_up_to<acc_t>((char *)save_invstd);
+
+    while (
+        !(batch_size % vec_size == 0 && input_vec_size >= vec_size && save_mean_vec_size >= vec_size && save_invstd_vec_size >= vec_size)) {
+        vec_size >>= 1;
+    }
+    if (running_mean != nullptr) {
+        vec_size = std::min(
+            memory_access::can_vectorize_up_to<running_t>((char *)running_mean), vec_size);
+    }
+    if (running_var != nullptr) {
+        vec_size = std::min(
+            memory_access::can_vectorize_up_to<running_t>((char *)running_var), vec_size);
+    }
+    return vec_size;
+}
