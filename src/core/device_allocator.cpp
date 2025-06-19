@@ -34,8 +34,8 @@ void DeviceAllocator::print() {
     std::cout << std::endl;
 }
 
-DataPtr DeviceAllocator::allocate(const size_t size, int stream) {
-    // dset_device(device);
+DataPtr DeviceAllocator::allocate(const size_t size, int device, int stream = 0) {
+    dset_device(device);
     size_t aligned_size = (size + ALIGNMENT - 1) / ALIGNMENT * ALIGNMENT;
     auto &pool = unused_blocks_[_find_pool_index(size)];
     auto search_key = Block(size, stream);
@@ -45,7 +45,7 @@ DataPtr DeviceAllocator::allocate(const size_t size, int stream) {
         auto new_block_ptr = new Block();
         new_block_ptr->ptr = raw_ptr;
         new_block_ptr->size = aligned_size;
-        // new_block_ptr->device = device;
+        new_block_ptr->device = device;
         new_block_ptr->stream = stream;
         new_block_ptr->in_use = true;
         ptr_to_block_[raw_ptr] = new_block_ptr;
