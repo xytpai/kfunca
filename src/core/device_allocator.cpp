@@ -34,7 +34,7 @@ void DeviceAllocator::print() {
     std::cout << std::endl;
 }
 
-DataPtr DeviceAllocator::allocate(const size_t size, int device, int stream = 0) {
+DataPtr DeviceAllocator::allocate(const size_t size, int device, int stream) {
     dset_device(device);
     size_t aligned_size = (size + ALIGNMENT - 1) / ALIGNMENT * ALIGNMENT;
     auto &pool = unused_blocks_[_find_pool_index(size)];

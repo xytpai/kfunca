@@ -6,7 +6,7 @@ Here are the supported features:
 
 - [x] GPU Launcher
 - [x] Device Allocator
-- [ ] Caching Allocator
+- [x] Caching Allocator
 - [x] Tensor Implementation
 - [x] Tensor Iterator
 

@@ -65,7 +65,7 @@ public:
     }
 
     void print();
-    DataPtr allocate(size_t size_in_bytes, int device);
+    DataPtr allocate(size_t size_in_bytes, int device, int stream = 0);
     void free(void *ptr);
 
 private:
