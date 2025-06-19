@@ -1,6 +1,8 @@
 #pragma once
 
 #include <unordered_map>
+#include <unordered_set>
+#include <set>
 #include <limits>
 
 #include "data_ptr.h"
@@ -13,12 +15,27 @@ struct Block {
     void *ptr{nullptr};
     size_t size{0};
     int device{-1};
+    int stream{0};
     bool in_use{false};
-    Block *next{nullptr};
     uint32_t id;
     static uint32_t next_id;
     Block() :
         id(next_id++) {
+    }
+    Block(size_t size, int stream) :
+        size(size), stream(stream) {
+    }
+};
+
+struct CompareBlock {
+    bool operator()(const Block *a, const Block *b) const {
+        if (a->stream != b->stream) {
+            return a->stream < b->stream;
+        }
+        if (a->size != b->size) {
+            return a->size < b->size;
+        }
+        return reinterpret_cast<uintptr_t>(a->ptr) < reinterpret_cast<uintptr_t>(b->ptr);
     }
 };
 
@@ -40,7 +57,6 @@ class DeviceAllocator {
     };
 
     int _find_pool_index(size_t size) const;
-    Block *_find_prev_block(size_t size);
 
 public:
     static DeviceAllocator *
@@ -60,7 +76,8 @@ private:
 
     static DeviceAllocator *m_pInstance;
 
-    Block pool_[POOL_SIZE];
+    std::set<Block *, CompareBlock> unused_blocks_[POOL_SIZE];
+    std::unordered_set<Block *> active_blocks_;
     std::unordered_map<void *, Block *> ptr_to_block_;
 };
 
