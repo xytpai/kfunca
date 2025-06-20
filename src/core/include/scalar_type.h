@@ -91,6 +91,15 @@ FORALL_BASIC_SCALAR_TYPES(SPECIALIZE_CppTypeToScalarType)
         }                                                            \
     }()
 
+#define FORALL_NN_SCALAR_TYPES(_, ...) \
+    _(float, Float, __VA_ARGS__)
+#define DISPATCH_NN_TYPES(TYPE, NAME, ...)                     \
+    [&] {                                                      \
+        switch (TYPE) {                                        \
+            FORALL_NN_SCALAR_TYPES(DISPATCH_CASE, __VA_ARGS__) \
+        }                                                      \
+    }()
+
 #undef SPECIALIZE_CppTypeToScalarType
 
 inline bool is_floating_type(ScalarType t) {

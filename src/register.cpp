@@ -7,6 +7,7 @@
 #include "device_info.h"
 #include "tensor.h"
 #include "binary_ops.h"
+#include "nn_ops.h"
 #include "device_allocator.h"
 
 namespace py = pybind11;
@@ -76,6 +77,7 @@ PYBIND11_MODULE(kfunca, m) {
     m.def("from_numpy", from_numpy);
     m.def("to_numpy", to_numpy);
     m.def("zeros", &zeros);
+    m.def("causal_attention", &gpu::causal_attention);
     py::class_<Tensor>(m, "tensor")
         .def("__copy__", [](const Tensor &self) { return Tensor(self); })
         .def("__deepcopy__", [](const Tensor &self, py::dict) { return Tensor(self); })
@@ -86,6 +88,7 @@ PYBIND11_MODULE(kfunca, m) {
         .def("dim", &Tensor::dim)
         .def("device", &Tensor::device)
         .def("shape", [](const Tensor &self, int64_t d) { return self.shape(d); })
+        .def("sizes", [](const Tensor &self) { return self.sizes(); })
         .def("dtype", &Tensor::dtype)
         .def("item", [](Tensor &self, std::vector<int64_t> indices) -> py::object {
             auto data = self.item(indices);
