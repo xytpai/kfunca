@@ -4,6 +4,7 @@
 #include "accumulate_type.h"
 
 #include "causal_attention.h"
+#include "causal_attention_ref.h"
 
 Tensor causal_attention_kernel(const Tensor &q, const Tensor &k, const Tensor &v) {
     auto q_shape = q.sizes();
@@ -18,7 +19,23 @@ Tensor causal_attention_kernel(const Tensor &q, const Tensor &k, const Tensor &v
     CHECK_FAIL(k_shape == v_shape);
     CHECK_FAIL(q.dtype() == k.dtype() && q.dtype() == v.dtype());
     auto out = empty_like(q);
+    auto qk_temp = empty({batch_size, nheads, q_seq_length, kv_seq_length}, out.dtype(), out.device());
+    auto out_m = empty({batch_size, nheads, q_seq_length}, out.dtype(), out.device());
+    auto out_l = empty({batch_size, nheads, q_seq_length}, out.dtype(), out.device());
     DISPATCH_NN_TYPES(q.dtype(), "causal_attention_kernel", [&]() {
+        causal_attention_ref_forward<scalar_t>(
+            out.data_ptr<scalar_t>(),
+            q.data_ptr<scalar_t>(),
+            k.data_ptr<scalar_t>(),
+            v.data_ptr<scalar_t>(),
+            batch_size,
+            nheads,
+            q_seq_length,
+            kv_seq_length,
+            hidden_size,
+            qk_temp.data_ptr<scalar_t>(),
+            out_m.data_ptr<scalar_t>(),
+            out_l.data_ptr<scalar_t>());
     });
     return out;
 }

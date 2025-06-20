@@ -11,9 +11,9 @@ class TestNN(object):
         q_seq_length = 1024
         kv_seq_length = 1024
         hidden_size = 64
-        q_ = np.random.uniform(-10, 10, size=(batch_size, nheads, q_seq_length, hidden_size))
-        k_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size))
-        v_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size))
+        q_ = np.random.uniform(-10, 10, size=(batch_size, nheads, q_seq_length, hidden_size)).astype(np.float32)
+        k_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size)).astype(np.float32)
+        v_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size)).astype(np.float32)
         q = kfunca.from_numpy(q_, 0)
         k = kfunca.from_numpy(k_, 0)
         v = kfunca.from_numpy(v_, 0)
