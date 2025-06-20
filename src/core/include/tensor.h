@@ -167,6 +167,10 @@ public:
     void *data_ptr() const {
         return storage_.get()->data_ptr();
     }
+    template <typename T>
+    T *data_ptr() const {
+        return reinterpret_cast<T *>(storage_.get()->data_ptr());
+    }
     size_t storage_bytes() const {
         return storage_.get()->size();
     }

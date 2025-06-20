@@ -95,8 +95,8 @@ private:
 template <typename func_t, typename... args_t>
 __global__ void kernel_wrapper(func_t fn, args_t &&...args) {
     extern __shared__ char smem[];
-    auto info = ITEM(smem);
-    fn(info, std::forward<args_t>(args)...);
+    auto it = ITEM(smem);
+    fn(it, std::forward<args_t>(args)...);
 }
 
 class Launcher {
@@ -350,17 +350,17 @@ public:
     }
 };
 
-template <typename T, typename info_t>
-DEVICE_INLINE T GPU_SHFL_UP(info_t &info, T value, unsigned int delta, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
+template <typename T, typename item_t>
+DEVICE_INLINE T GPU_SHFL_UP(item_t &item, T value, unsigned int delta, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
     return __shfl_up_sync(mask, value, delta, width);
 }
 
-template <typename T, typename info_t>
-DEVICE_INLINE T GPU_SHFL_DOWN(info_t &info, T value, unsigned int delta, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
+template <typename T, typename item_t>
+DEVICE_INLINE T GPU_SHFL_DOWN(item_t &item, T value, unsigned int delta, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
     return __shfl_down_sync(mask, value, delta, width);
 }
 
-template <typename T, typename info_t>
-DEVICE_INLINE T GPU_SHFL_XOR(info_t &info, T value, int laneMask, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
+template <typename T, typename item_t>
+DEVICE_INLINE T GPU_SHFL_XOR(item_t &item, T value, int laneMask, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
     return __shfl_xor_sync(mask, value, laneMask, width);
 }
