@@ -8,23 +8,28 @@ print(kfunca.__file__)
 
 class TestNN(object):
     def test_causal_attention(self):
-        batch_size = 4
-        nheads = 16
-        q_seq_length = 64
-        kv_seq_length = 1024
-        hidden_size = 128
-        q_ = np.random.uniform(-10, 10, size=(batch_size, nheads, q_seq_length, hidden_size)).astype(np.float32)
-        k_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size)).astype(np.float32)
-        v_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size)).astype(np.float32)
-        q = kfunca.from_numpy(q_, 0)
-        k = kfunca.from_numpy(k_, 0)
-        v = kfunca.from_numpy(v_, 0)
-        out = kfunca.causal_attention(q, k, v).numpy()
-        q_ref = torch.from_numpy(q_)
-        k_ref = torch.from_numpy(k_)
-        v_ref = torch.from_numpy(v_)
-        out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, is_causal=True).numpy()
-        assert(np.allclose(out, out_ref, rtol=1e-3, atol=1e-3) == True)
+        batch_size_ = (2, 3, 5)
+        nheads_ = (4, 5, 16)
+        q_seq_length_ = (32, 64, 65)
+        kv_seq_length_ = (256, 32, 33)
+        hidden_size_ = (128, 64, 123)
+
+        for (batch_size, nheads, q_seq_length, kv_seq_length, hidden_size) in zip(
+            batch_size_, nheads_, q_seq_length_, kv_seq_length_, hidden_size_
+        ):
+            print(batch_size, nheads, q_seq_length, kv_seq_length, hidden_size)
+            q_ = np.random.uniform(-10, 10, size=(batch_size, nheads, q_seq_length, hidden_size)).astype(np.float32)
+            k_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size)).astype(np.float32)
+            v_ = np.random.uniform(-10, 10, size=(batch_size, nheads, kv_seq_length, hidden_size)).astype(np.float32)
+            q = kfunca.from_numpy(q_, 0)
+            k = kfunca.from_numpy(k_, 0)
+            v = kfunca.from_numpy(v_, 0)
+            out = kfunca.causal_attention(q, k, v).numpy()
+            q_ref = torch.from_numpy(q_)
+            k_ref = torch.from_numpy(k_)
+            v_ref = torch.from_numpy(v_)
+            out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, is_causal=True).numpy()
+            assert(np.allclose(out, out_ref, rtol=1e-3, atol=1e-3) == True)
 
 
 if __name__ == '__main__':

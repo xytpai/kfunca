@@ -23,19 +23,50 @@ Tensor causal_attention_kernel(const Tensor &q, const Tensor &k, const Tensor &v
     auto out_m = empty({batch_size, nheads, q_seq_length}, out.dtype(), out.device());
     auto out_l = empty({batch_size, nheads, q_seq_length}, out.dtype(), out.device());
     DISPATCH_NN_TYPES(q.dtype(), "causal_attention_kernel", [&]() {
-        causal_attention_ref_forward<scalar_t>(
-            out.data_ptr<scalar_t>(),
-            q.data_ptr<scalar_t>(),
-            k.data_ptr<scalar_t>(),
-            v.data_ptr<scalar_t>(),
-            batch_size,
-            nheads,
-            q_seq_length,
-            kv_seq_length,
-            hidden_size,
-            qk_temp.data_ptr<scalar_t>(),
-            out_m.data_ptr<scalar_t>(),
-            out_l.data_ptr<scalar_t>());
+        int ret = 1;
+        switch (hidden_size) {
+        case 128:
+            ret = causal_attention_forward_fma_ref<scalar_t, 128>(out.data_ptr<scalar_t>(),
+                                                                  q.data_ptr<scalar_t>(),
+                                                                  k.data_ptr<scalar_t>(),
+                                                                  v.data_ptr<scalar_t>(),
+                                                                  batch_size,
+                                                                  nheads,
+                                                                  q_seq_length,
+                                                                  kv_seq_length,
+                                                                  out_m.data_ptr<scalar_t>(),
+                                                                  out_l.data_ptr<scalar_t>());
+            break;
+        case 64:
+            ret = causal_attention_forward_fma_ref<scalar_t, 64>(out.data_ptr<scalar_t>(),
+                                                                 q.data_ptr<scalar_t>(),
+                                                                 k.data_ptr<scalar_t>(),
+                                                                 v.data_ptr<scalar_t>(),
+                                                                 batch_size,
+                                                                 nheads,
+                                                                 q_seq_length,
+                                                                 kv_seq_length,
+                                                                 out_m.data_ptr<scalar_t>(),
+                                                                 out_l.data_ptr<scalar_t>());
+            break;
+        default:
+            break;
+        }
+        if (ret != 0) {
+            causal_attention_ref_forward<scalar_t>(
+                out.data_ptr<scalar_t>(),
+                q.data_ptr<scalar_t>(),
+                k.data_ptr<scalar_t>(),
+                v.data_ptr<scalar_t>(),
+                batch_size,
+                nheads,
+                q_seq_length,
+                kv_seq_length,
+                hidden_size,
+                qk_temp.data_ptr<scalar_t>(),
+                out_m.data_ptr<scalar_t>(),
+                out_l.data_ptr<scalar_t>());
+        }
     });
     return out;
 }
