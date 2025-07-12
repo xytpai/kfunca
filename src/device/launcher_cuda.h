@@ -2,6 +2,8 @@
 
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include <mma.h>
+#include <cuda_fp16.h>
 
 #include <iostream>
 #include <string>
@@ -363,4 +365,141 @@ DEVICE_INLINE T GPU_SHFL_DOWN(item_t &item, T value, unsigned int delta, int wid
 template <typename T, typename item_t>
 DEVICE_INLINE T GPU_SHFL_XOR(item_t &item, T value, int laneMask, int width = GPU_WARP_SIZE, unsigned int mask = 0xffffffff) {
     return __shfl_xor_sync(mask, value, laneMask, width);
+}
+
+/**
+ * block_gemm:
+ * out = alpha * a @ b + beta * out
+ */
+template <
+    typename input_t,
+    typename output_t,
+    int M_DIM,
+    int N_DIM,
+    int K_DIM,
+    int NUM_LANS_PER_WARP_M,
+    int NUM_LANS_PER_WARP_N,
+    int NUM_WARPS_M,
+    int NUM_WARPS_N,
+    int WMMA_M,
+    int WMMA_N,
+    int WMMA_K,
+    int WARP_SIZE,
+    bool IS_A_ROW_MAJOR,
+    bool IS_B_ROW_MAJOR,
+    bool ACCUMULATE>
+DEVICE_INLINE void block_gemm_asic(
+    ITEM &item,
+    output_t *out_row_major,
+    const input_t *a,
+    const input_t *b,
+    float alpha = 1.0,
+    float beta = 1.0) {
+    constexpr int M = NUM_LANS_PER_WARP_M * NUM_WARPS_M * WMMA_M;
+    constexpr int N = NUM_LANS_PER_WARP_N * NUM_WARPS_N * WMMA_N;
+    constexpr int STEP_K = WMMA_K * 2;
+
+    static_assert(M_DIM <= M && N_DIM <= N);
+    static_assert(M_DIM % WMMA_M == 0 && N_DIM % WMMA_N == 0);
+    static_assert(K_DIM % STEP_K == 0);
+    static_assert(NUM_WARPS_M * NUM_WARPS_N == 8); // 256th
+
+    int wid = item.thread_idx_x() / WARP_SIZE;
+    int wid_m = wid / NUM_WARPS_N;
+    int wid_n = wid % NUM_WARPS_N;
+
+    using a_frag_t = std::conditional_t<
+        IS_A_ROW_MAJOR,
+        nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, input_t, nvcuda::wmma::row_major>,
+        nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, WMMA_M, WMMA_N, WMMA_K, input_t, nvcuda::wmma::col_major>>;
+    a_frag_t a_frag[2][NUM_LANS_PER_WARP_M];
+
+    using b_frag_t = std::conditional_t<
+        IS_B_ROW_MAJOR,
+        nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, input_t, nvcuda::wmma::row_major>,
+        nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, WMMA_M, WMMA_N, WMMA_K, input_t, nvcuda::wmma::col_major>>;
+    b_frag_t b_frag[2][NUM_LANS_PER_WARP_N];
+
+    nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K,
+                           float>
+        o_frag[NUM_LANS_PER_WARP_M][NUM_LANS_PER_WARP_N];
+
+#pragma unroll
+    for (int i = 0; i < NUM_LANS_PER_WARP_M; i++) {
+#pragma unroll
+        for (int j = 0; j < NUM_LANS_PER_WARP_N; j++) {
+            nvcuda::wmma::fill_fragment(o_frag[i][j], 0.0f);
+        }
+    }
+
+    for (int ki = 0; ki < K_DIM; ki += STEP_K) {
+#pragma unroll
+        for (int i = 0; i < NUM_LANS_PER_WARP_M; i++) {
+            int mi = (wid_m + i * NUM_WARPS_M) * WMMA_M;
+            if (mi < M_DIM) {
+                if constexpr (IS_A_ROW_MAJOR) {
+                    nvcuda::wmma::load_matrix_sync(a_frag[0][i], a + mi * K_DIM + ki, K_DIM);
+                    nvcuda::wmma::load_matrix_sync(a_frag[1][i], a + mi * K_DIM + ki + WMMA_K, K_DIM);
+                } else {
+                    nvcuda::wmma::load_matrix_sync(a_frag[0][i], a + mi + ki * N_DIM, N_DIM);
+                    nvcuda::wmma::load_matrix_sync(a_frag[1][i], a + mi + (ki + WMMA_K) * N_DIM, N_DIM);
+                }
+            }
+        }
+#pragma unroll
+        for (int i = 0; i < NUM_LANS_PER_WARP_N; i++) {
+            int ni = (wid_n + i * NUM_WARPS_N) * WMMA_N;
+            if (ni < N_DIM) {
+                if constexpr (IS_B_ROW_MAJOR) {
+                    nvcuda::wmma::load_matrix_sync(b_frag[0][i], b + ni + ki * N_DIM, N_DIM);
+                    nvcuda::wmma::load_matrix_sync(b_frag[1][i], b + ni + (ki + WMMA_K) * N_DIM, N_DIM);
+                } else {
+                    nvcuda::wmma::load_matrix_sync(b_frag[0][i], b + ni * K_DIM + ki, K_DIM);
+                    nvcuda::wmma::load_matrix_sync(b_frag[1][i], b + ni * K_DIM + ki + WMMA_K, K_DIM);
+                }
+            }
+        }
+#pragma unroll
+        for (int i = 0; i < NUM_LANS_PER_WARP_M; i++) {
+#pragma unroll
+            for (int j = 0; j < NUM_LANS_PER_WARP_N; j++) {
+                nvcuda::wmma::mma_sync(o_frag[i][j], a_frag[0][i], b_frag[0][j], o_frag[i][j]);
+                nvcuda::wmma::mma_sync(o_frag[i][j], a_frag[1][i], b_frag[1][j], o_frag[i][j]);
+            }
+        }
+    }
+
+    // write back
+    for (int i = 0; i < NUM_LANS_PER_WARP_M; i++) {
+        for (int j = 0; j < NUM_LANS_PER_WARP_N; j++) {
+            for (int k = 0; k < o_frag[i][j].num_elements; k++) {
+                o_frag[i][j].x[k] *= alpha;
+            }
+            int mi = (wid_m + i * NUM_WARPS_M) * WMMA_M;
+            int ni = (wid_n + j * NUM_WARPS_N) * WMMA_N;
+            if (mi < M_DIM && ni < N_DIM) {
+                int out_offset = mi * N_DIM + ni;
+                if constexpr (ACCUMULATE) {
+                    nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, output_t> c_frag;
+                    nvcuda::wmma::load_matrix_sync(c_frag, out_row_major + out_offset, N_DIM, nvcuda::wmma::mem_row_major);
+                    for (int k = 0; k < c_frag.num_elements; k++) {
+                        c_frag.x[k] = (output_t)((float)c_frag.x[k] * beta + o_frag[i][j].x[k]);
+                    }
+                    nvcuda::wmma::store_matrix_sync(out_row_major + out_offset, c_frag, N_DIM, nvcuda::wmma::mem_row_major);
+                } else {
+                    if constexpr (std::is_same<output_t, float>::value) {
+                        nvcuda::wmma::store_matrix_sync(
+                            out_row_major + out_offset, o_frag[i][j], N_DIM, nvcuda::wmma::mem_row_major);
+                    } else {
+                        nvcuda::wmma::fragment<nvcuda::wmma::accumulator, WMMA_M, WMMA_N, WMMA_K, output_t> c_frag;
+                        for (int k = 0; k < c_frag.num_elements; k++) {
+                            c_frag.x[k] = (output_t)(o_frag[i][j].x[k]);
+                        }
+                        nvcuda::wmma::store_matrix_sync(out_row_major + out_offset, c_frag, N_DIM, nvcuda::wmma::mem_row_major);
+                    }
+                }
+            }
+            item.barrier();
+        }
+    }
 }

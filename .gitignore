@@ -17,4 +17,4 @@ log
 #
 # Below files are not deleted by "setup.py clean".
 
-test.py
+test.*

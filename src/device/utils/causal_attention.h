@@ -5,42 +5,16 @@
 
 #include "array.h"
 #include "tensor_memory_access.h"
+#include "block_utils.h"
 
 namespace block {
 
-template <int WARP_SIZE, typename func_t>
-DEVICE_INLINE void warp_reduce_f32(ITEM &item, float *x, int wid, int warp_tid, float *out, func_t fn) {
-#pragma unroll
-    for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
-        *x = fn(*x, GPU_SHFL_DOWN(item, *x, offset, WARP_SIZE));
-    }
-    if (warp_tid == 0) out[wid] = *x;
-}
-
-struct WarpReduceSumFN {
-    DEVICE_INLINE float operator()(float a, float b) const {
-        return a + b;
-    }
-    DEVICE_INLINE float identity_element() const {
-        return (float)0;
-    }
-};
-
-struct WarpReduceMaxFN {
-    DEVICE_INLINE float operator()(float a, float b) const {
-        return std::max(a, b);
-    }
-    DEVICE_INLINE float identity_element() const {
-        return -std::numeric_limits<float>::infinity();
-    }
-};
-
-template <typename scalar_t, int SEQ_Q, int SEQ_KV, int NUM_THREADS, int WARP_SIZE, typename func_t>
+template <typename mat_t, typename acc_t, int SEQ_Q, int SEQ_KV, int NUM_THREADS, int WARP_SIZE, typename func_t>
 DEVICE_INLINE void fmha_reduce(
     ITEM &item,
-    scalar_t *out,
-    const scalar_t *curr_mat,
-    const scalar_t *prev,
+    acc_t *out,
+    const mat_t *curr_mat,
+    const acc_t *prev,
     float *warp_reduce_temp,
     func_t func) {
     constexpr int NUM_WARPS = SEQ_KV / WARP_SIZE;
@@ -59,69 +33,9 @@ DEVICE_INLINE void fmha_reduce(
             for (int k = 1; k < NUM_WARPS; k++) {
                 value = func(warp_reduce_temp[k], value);
             }
-            out[m] = (scalar_t)func((float)prev[m], value);
+            out[m] = (acc_t)func((float)prev[m], value);
         }
         item.barrier();
-    }
-}
-
-template <
-    typename input_t,
-    typename output_t,
-    int M,
-    int N,
-    int K,
-    int NUM_THREADS,
-    int WARP_SIZE,
-    bool IS_B_ROW_MAJOR,
-    bool ACCUMULATE>
-DEVICE_INLINE void fma_dot_ref(
-    ITEM &item,
-    output_t *out_row_major,
-    const input_t *a_row_major,
-    const input_t *b,
-    float *warp_reduce_temp,
-    float scale) {
-    constexpr int TOTAL_WARPS = NUM_THREADS / WARP_SIZE;
-    constexpr int NUM_WARPS_PER_K = K / WARP_SIZE;
-    static_assert(TOTAL_WARPS >= NUM_WARPS_PER_K);
-
-    constexpr int SPLIT_N = TOTAL_WARPS / NUM_WARPS_PER_K;
-
-    WarpReduceSumFN warp_reduce_sum_fn;
-
-    int tid = item.thread_idx_x();
-    int wid = tid / WARP_SIZE;
-    int warp_tid = tid % WARP_SIZE;
-
-    int wid_n = wid / NUM_WARPS_PER_K;
-    int wid_k = wid % NUM_WARPS_PER_K;
-
-    for (int mi = 0; mi < M; mi++) {
-        for (int ni = 0; ni < N; ni += SPLIT_N) {
-            int a_offset = mi * K + wid_k * WARP_SIZE + warp_tid;
-            int b_offset;
-            if constexpr (IS_B_ROW_MAJOR) {
-                b_offset = (wid_k * WARP_SIZE + warp_tid) * N + ni + wid_n;
-            } else {
-                b_offset = (ni + wid_n) * K + wid_k * WARP_SIZE + warp_tid;
-            }
-            float sum = a_row_major[a_offset] * b[b_offset];
-            warp_reduce_f32<WARP_SIZE>(item, &sum, wid, warp_tid, warp_reduce_temp, warp_reduce_sum_fn);
-            item.barrier();
-            if (wid_k == 0 && warp_tid == 0) {
-                float wsum = 0;
-#pragma unroll
-                for (int i = 0; i < NUM_WARPS_PER_K; i++)
-                    wsum += warp_reduce_temp[wid_n * NUM_WARPS_PER_K + i];
-                if constexpr (ACCUMULATE) {
-                    out_row_major[mi * N + ni + wid_n] += (output_t)(wsum * scale);
-                } else {
-                    out_row_major[mi * N + ni + wid_n] = (output_t)(wsum * scale);
-                }
-            }
-            item.barrier();
-        }
     }
 }
 
@@ -129,17 +43,17 @@ DEVICE_INLINE void fma_dot_ref(
 
 template <typename scalar_t, int BLOCK_Q, int BLOCK_KV, int HIDDEN_SIZE, int NUM_WARPS>
 struct AttentionSLMBlock {
-    float o[BLOCK_Q * HIDDEN_SIZE];
     scalar_t q[BLOCK_Q * HIDDEN_SIZE];
     scalar_t k[BLOCK_KV * HIDDEN_SIZE];
     scalar_t v[BLOCK_KV * HIDDEN_SIZE];
-    scalar_t qk[BLOCK_Q * BLOCK_KV];
     scalar_t p[BLOCK_Q * BLOCK_KV];
-    scalar_t m_curr[BLOCK_Q];
-    scalar_t l_curr[BLOCK_Q];
-    scalar_t m_prev[BLOCK_Q];
-    scalar_t l_prev[BLOCK_Q];
-    scalar_t l_rcp[BLOCK_Q];
+    float o[BLOCK_Q * HIDDEN_SIZE];
+    float qk[BLOCK_Q * BLOCK_KV];
+    float m_curr[BLOCK_Q];
+    float l_curr[BLOCK_Q];
+    float m_prev[BLOCK_Q];
+    float l_prev[BLOCK_Q];
+    float l_rcp[BLOCK_Q];
     float warp_reduce_temp[NUM_WARPS];
 };
 
@@ -169,59 +83,71 @@ struct CausalAttentionForwardFN {
         auto v_b = const_cast<scalar_t *>(v_) + offset_kv_batch;
         auto o_ms = out_m_ + bx * q_seq_length_ + by * BLOCK_Q;
         auto o_ls = out_l_ + bx * q_seq_length_ + by * BLOCK_Q;
+        auto neg_inf = -std::numeric_limits<float>::infinity();
 
         FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, 1, {
-            shared->m_prev[i] = -1e20;
+            shared->m_prev[i] = neg_inf;
             shared->l_prev[i] = 0;
         });
 
-        vec_acc_t acc_zero;
+        if constexpr (VEC_SIZE == 1) {
+            FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * HIDDEN_SIZE), 1, {
+                shared->o[i] = 0;
+                shared->q[i] = q_bs[i];
+            });
+        } else {
+            vec_acc_t acc_zero;
 #pragma unroll
-        for (int ii = 0; ii < VEC_SIZE; ++ii) {
-            acc_zero[ii] = 0;
+            for (int ii = 0; ii < VEC_SIZE; ++ii) {
+                acc_zero[ii] = 0;
+            }
+            FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * HIDDEN_SIZE), VEC_SIZE, {
+                *reinterpret_cast<vec_acc_t *>(&shared->o[i]) = acc_zero;
+                *reinterpret_cast<vec_t *>(&shared->q[i]) = *reinterpret_cast<vec_t *>(&q_bs[i]);
+            });
         }
-
-        FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * HIDDEN_SIZE), VEC_SIZE, {
-            *reinterpret_cast<vec_acc_t *>(&shared->o[i]) = acc_zero;
-            *reinterpret_cast<vec_t *>(&shared->q[i]) = *reinterpret_cast<vec_t *>(&q_bs[i]);
-        });
 
         block::WarpReduceMaxFN warp_reduce_max_fn;
         block::WarpReduceSumFN warp_reduce_sum_fn;
 
         for (int start_kv_s = 0; start_kv_s < kv_seq_length_; start_kv_s += BLOCK_KV) {
-            FMHA_FOR_LOOP_SYNC(i, (BLOCK_KV * HIDDEN_SIZE), VEC_SIZE, {
-                *reinterpret_cast<vec_t *>(&shared->k[i]) =
-                    *reinterpret_cast<vec_t *>(&k_b[start_kv_s * HIDDEN_SIZE + i]);
-            });
+            if constexpr (VEC_SIZE == 1) {
+                FMHA_FOR_LOOP_SYNC(i, (BLOCK_KV * HIDDEN_SIZE), 1, {
+                    shared->k[i] = k_b[start_kv_s * HIDDEN_SIZE + i];
+                });
+            } else {
+                FMHA_FOR_LOOP_SYNC(i, (BLOCK_KV * HIDDEN_SIZE), VEC_SIZE, {
+                    *reinterpret_cast<vec_t *>(&shared->k[i]) =
+                        *reinterpret_cast<vec_t *>(&k_b[start_kv_s * HIDDEN_SIZE + i]);
+                });
+            }
 
-            block::fma_dot_ref<scalar_t, scalar_t, BLOCK_Q, BLOCK_KV, HIDDEN_SIZE, BLOCK_THREADS, WARP_SIZE, false, false>(
-                item, shared->qk, shared->q, shared->k, shared->warp_reduce_temp,
-                1.0f / std::sqrt((float)HIDDEN_SIZE));
+            block::block_gemm<BLOCK_THREADS, scalar_t, float, BLOCK_Q, BLOCK_KV, HIDDEN_SIZE, true, false, false>(
+                item, shared->qk, shared->q, shared->k, 1.0f / std::sqrt((float)HIDDEN_SIZE), 0.0f);
 
             FMHA_FOR_LOOP_SYNC(i, BLOCK_Q * BLOCK_KV, 1, {
                 int row = by * BLOCK_Q + i / BLOCK_KV;
                 int col = start_kv_s + i % BLOCK_KV;
-                shared->qk[i] = row >= col ? shared->qk[i] : -1e20;
+                shared->qk[i] = row >= col ? shared->qk[i] : neg_inf;
             });
 
-            block::fmha_reduce<scalar_t, BLOCK_Q, BLOCK_KV, BLOCK_THREADS, WARP_SIZE>(
+            block::fmha_reduce<float, float, BLOCK_Q, BLOCK_KV, BLOCK_THREADS, WARP_SIZE>(
                 item, shared->m_curr, shared->qk, shared->m_prev, shared->warp_reduce_temp, warp_reduce_max_fn);
 
             FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, 1, {
-                shared->l_prev[i] *= std::exp(shared->m_prev[i] - shared->m_curr[i]);
+                shared->l_prev[i] *= std::exp((float)shared->m_prev[i] - (float)shared->m_curr[i]);
             });
 
             FMHA_FOR_LOOP_SYNC(i, BLOCK_Q * BLOCK_KV, 1, {
                 int j = i / BLOCK_KV;
-                shared->p[i] = std::exp(shared->qk[i] - shared->m_curr[j]);
+                shared->p[i] = std::exp((float)shared->qk[i] - (float)shared->m_curr[j]);
             });
 
-            block::fmha_reduce<scalar_t, BLOCK_Q, BLOCK_KV, BLOCK_THREADS, WARP_SIZE>(
+            block::fmha_reduce<scalar_t, float, BLOCK_Q, BLOCK_KV, BLOCK_THREADS, WARP_SIZE>(
                 item, shared->l_curr, shared->p, shared->l_prev, shared->warp_reduce_temp, warp_reduce_sum_fn);
 
             FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, 1, {
-                shared->l_rcp[i] = 1.0f / shared->l_curr[i];
+                shared->l_rcp[i] = 1.0f / (float)shared->l_curr[i];
             });
 
             FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * BLOCK_KV), 1, {
@@ -231,17 +157,23 @@ struct CausalAttentionForwardFN {
 
             FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * HIDDEN_SIZE), 1, {
                 int j = i / HIDDEN_SIZE;
-                shared->o[i] *= shared->l_prev[j] * shared->l_rcp[j];
+                shared->o[i] *= (float)shared->l_prev[j] * (float)shared->l_rcp[j];
             });
 
-            FMHA_FOR_LOOP_SYNC(i, (BLOCK_KV * HIDDEN_SIZE), VEC_SIZE, {
-                *reinterpret_cast<vec_t *>(&shared->v[i]) =
-                    *reinterpret_cast<vec_t *>(&v_b[start_kv_s * HIDDEN_SIZE + i]);
-            });
+            if constexpr (VEC_SIZE == 1) {
+                FMHA_FOR_LOOP_SYNC(i, (BLOCK_KV * HIDDEN_SIZE), 1, {
+                    shared->v[i] = v_b[start_kv_s * HIDDEN_SIZE + i];
+                });
+            } else {
+                FMHA_FOR_LOOP_SYNC(i, (BLOCK_KV * HIDDEN_SIZE), VEC_SIZE, {
+                    *reinterpret_cast<vec_t *>(&shared->v[i]) =
+                        *reinterpret_cast<vec_t *>(&v_b[start_kv_s * HIDDEN_SIZE + i]);
+                });
+            }
 
-            block::fma_dot_ref<scalar_t, float, BLOCK_Q, HIDDEN_SIZE, BLOCK_KV,
-                               BLOCK_THREADS, WARP_SIZE, true, true>(
-                item, shared->o, shared->p, shared->v, shared->warp_reduce_temp, 1.0f);
+            block::block_gemm<BLOCK_THREADS, scalar_t, float, BLOCK_Q, HIDDEN_SIZE, BLOCK_KV,
+                              true, true, true>(
+                item, shared->o, shared->p, shared->v, 1.0f, 1.0f);
 
             FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, 1, {
                 shared->l_prev[i] = shared->l_curr[i];
@@ -252,18 +184,29 @@ struct CausalAttentionForwardFN {
             });
         }
 
-        FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * HIDDEN_SIZE), VEC_SIZE, {
-            *reinterpret_cast<vec_t *>(&o_bs[i]) = *reinterpret_cast<vec_t *>(&shared->o[i]);
-        });
-
-        FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, VEC_SIZE, {
-            *reinterpret_cast<vec_t *>(&o_ms[i]) = *reinterpret_cast<vec_t *>(&shared->m_prev[i]);
-        });
-
-        FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, VEC_SIZE, {
-            *reinterpret_cast<vec_t *>(&o_ls[i]) = *reinterpret_cast<vec_t *>(&shared->l_prev[i]);
-        });
+        if constexpr (VEC_SIZE == 1) {
+            FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * HIDDEN_SIZE), 1, {
+                o_bs[i] = shared->o[i];
+            });
+            FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, VEC_SIZE, {
+                o_ms[i] = shared->m_prev[i];
+            });
+            FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, VEC_SIZE, {
+                o_ls[i] = shared->l_prev[i];
+            });
+        } else {
+            FMHA_FOR_LOOP_SYNC(i, (BLOCK_Q * HIDDEN_SIZE), VEC_SIZE, {
+                *reinterpret_cast<vec_t *>(&o_bs[i]) = *reinterpret_cast<vec_t *>(&shared->o[i]);
+            });
+            FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, VEC_SIZE, {
+                *reinterpret_cast<vec_t *>(&o_ms[i]) = *reinterpret_cast<vec_t *>(&shared->m_prev[i]);
+            });
+            FMHA_FOR_LOOP_SYNC(i, BLOCK_Q, VEC_SIZE, {
+                *reinterpret_cast<vec_t *>(&o_ls[i]) = *reinterpret_cast<vec_t *>(&shared->l_prev[i]);
+            });
+        }
     }
+
     CausalAttentionForwardFN(
         scalar_t *out, const scalar_t *q, const scalar_t *k, const scalar_t *v,
         const int q_seq_length, const int kv_seq_length, scalar_t *out_m, scalar_t *out_l) :
