@@ -141,6 +141,15 @@ class TestTensorImpl(object):
             mean_invstd = arr_.norm_stat(dim)
             assert(np.allclose(mean, mean_invstd[0].numpy(), rtol=1e-3, atol=1e-3) == True)
             assert(np.allclose(invstd, mean_invstd[1].numpy(), rtol=1e-3, atol=1e-3) == True)
+    
+    def test_convert(self):
+        arr = np.random.uniform(-10, 10, size=(2, 3))
+        arr_gpu = kfunca.from_numpy(arr, 0)
+        arr_gpu_half = arr_gpu.half()
+        arr_gpu *= arr_gpu
+        arr_gpu_half *= arr_gpu_half
+        assert(np.allclose(arr_gpu.numpy(), arr_gpu_half.float().numpy(), rtol=1e-3, atol=1e-3) == True)
+
 
 
 if __name__ == '__main__':
