@@ -19,14 +19,14 @@ Here are the supported features:
 - [x] from_numpy/to_numpy
 - [x] add/sub/mul/div
 - [ ] permute/contiguous
-- [ ] to
+- [x] copy
 - [x] sum/mean
 - [ ] sort/topk
 
 > Neural network operator:
 
 - [ ] rms_norm
-- [ ] scaled_dot_product_attention
+- [x] causal attention
 - [ ] embedding
 - [ ] matmul
 - [ ] qkv_linear
@@ -36,7 +36,7 @@ Here are the supported features:
 #### 3. Floating Point Support
 
 - [x] fp32/64
-- [ ] float16
+- [x] float16
 - [ ] bfloat16
 - [ ] float8
 
