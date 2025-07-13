@@ -503,3 +503,22 @@ DEVICE_INLINE void block_gemm_asic(
         }
     }
 }
+
+inline DEVICE float half_to_float(uint16_t h) {
+    float f;
+    asm volatile("cvt.f32.f16 %0, %1;\n"
+                 : "=f"(f)
+                 : "h"(h));
+    return f;
+}
+
+inline DEVICE uint16_t float_to_half(float f) {
+    union {
+        uint32_t u32;
+        uint16_t u16[2];
+    } tmp;
+    asm volatile("cvt.rn.f16.f32 %0, %1;\n"
+                 : "=h"(tmp.u16[0])
+                 : "f"(f));
+    return tmp.u16[0];
+}

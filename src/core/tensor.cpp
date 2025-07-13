@@ -9,9 +9,11 @@
 #include "scalar_type.h"
 #include "memory_engine.h"
 #include "binary_ops.h"
+#include "unary_ops.h"
 #include "nullary_ops.h"
 #include "reduce_ops.h"
 #include "norm_ops.h"
+#include "accumulate_type.h"
 
 using namespace utils::memory;
 
@@ -85,6 +87,14 @@ int64_t Tensor::offset(const std::vector<int64_t> &indices) const {
     return flat_index;
 }
 
+Tensor Tensor::_half() const {
+    return gpu::convert(*this, ScalarType::Half);
+}
+
+Tensor Tensor::_float() const {
+    return gpu::convert(*this, ScalarType::Float);
+}
+
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device) {
     Tensor output(shape, dtype);
     output.new_storage_(device);
@@ -125,7 +135,8 @@ void print_tensor_(std::ostream &os, const Tensor &t, std::vector<int64_t> indic
     if (dim == t.dim()) {
         auto result_ = t.item(indices);
         DISPATCH_BASIC_TYPES(t.dtype(), "print_tensor_", [&]() {
-            os << std::fixed << std::showpos << std::setprecision(5) << *reinterpret_cast<scalar_t *>(&result_);
+            using acc_t = acc_type<scalar_t>;
+            os << std::fixed << std::showpos << std::setprecision(5) << (acc_t)(*reinterpret_cast<scalar_t *>(&result_));
         });
         return;
     }

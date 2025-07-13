@@ -19,6 +19,7 @@ private:
 void fill_kernel(TensorIterator &iter, const any_t &value) {
     auto value_ = static_cast<double>(value);
     DISPATCH_BASIC_TYPES(iter.dtype(), "fill_kernel", [&]() {
-        gpu_kernel(iter, FillFunctor<scalar_t>((scalar_t)value_));
+        using acc_t = acc_type<scalar_t>;
+        gpu_kernel(iter, FillFunctor<acc_t>(value_));
     });
 }

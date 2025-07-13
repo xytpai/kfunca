@@ -201,6 +201,9 @@ public:
     Tensor &fill_(const any_t &value);
     int64_t offset(const std::vector<int64_t> &indices) const;
 
+    Tensor _half() const;
+    Tensor _float() const;
+
     Tensor operator+(const Tensor &other) const;
     Tensor &operator+=(const Tensor &other);
     Tensor operator-(const Tensor &other) const;

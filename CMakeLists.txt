@@ -8,10 +8,12 @@ include_directories(${ROOTDIR}/src/device/include)
 include_directories(${ROOTDIR}/src/device/utils)
 include_directories(${ROOTDIR}/src/device/utils/memory)
 
+set(CMAKE_CXX_STANDARD 20)
+
 find_package(CUDA REQUIRED)
 if(CUDA_FOUND)
     enable_language(CUDA)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --std=c++17")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --std=c++20")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -arch=sm_80")
     # set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G")
