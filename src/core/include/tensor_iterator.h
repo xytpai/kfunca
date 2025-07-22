@@ -115,6 +115,7 @@ public:
     }
 
     int64_t shape(int dim) const {
+        dim = (ndim_ + dim) % ndim_;
         return shape_[dim];
     }
 

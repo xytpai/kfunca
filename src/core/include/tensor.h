@@ -103,6 +103,7 @@ class Tensor {
     ScalarType dtype_;
     int64_t numel_;
     intrusive_ptr<TensorStorage> storage_;
+    bool is_contiguous_ = true;
 
     void new_storage_(int device) {
         size_t bytes = shape_[0] * stride_[0] * element_size(dtype_);
@@ -125,7 +126,7 @@ public:
     Tensor(const Tensor &other) :
         dim_(other.dim_), shape_(other.shape_), stride_(other.stride_),
         dtype_(other.dtype_), numel_(other.numel_),
-        storage_(other.storage_) {
+        storage_(other.storage_), is_contiguous_(other.is_contiguous_) {
     }
     Tensor &operator=(const Tensor &other) {
         dim_ = other.dim_;
@@ -134,6 +135,7 @@ public:
         dtype_ = other.dtype_;
         numel_ = other.numel_;
         storage_ = other.storage_;
+        is_contiguous_ = other.is_contiguous_;
         return *this;
     }
     Tensor(Tensor &&other) = default;
@@ -143,6 +145,7 @@ public:
         return dim_;
     }
     int64_t shape(int d) const {
+        d = (dim_ + d) % dim_;
         return shape_[d];
     }
     dim_t &shape() {
@@ -193,6 +196,9 @@ public:
         std::ostringstream oss;
         oss << *this;
         return oss.str();
+    }
+    bool is_contiguous() const {
+        return is_contiguous_;
     }
 
     void copy_from_cpu_ptr(void *ptr);

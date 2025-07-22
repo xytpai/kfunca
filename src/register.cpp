@@ -7,6 +7,7 @@
 #include "device_info.h"
 #include "tensor.h"
 #include "binary_ops.h"
+#include "gemm_ops.h"
 #include "nn_ops.h"
 #include "device_allocator.h"
 
@@ -79,6 +80,7 @@ PYBIND11_MODULE(kfunca, m) {
     m.def("to_numpy", to_numpy);
     m.def("zeros", &zeros);
     m.def("causal_attention", &gpu::causal_attention);
+    m.def("gemm", &gpu::gemm);
     py::class_<Tensor>(m, "tensor")
         .def("__copy__", [](const Tensor &self) { return Tensor(self); })
         .def("__deepcopy__", [](const Tensor &self, py::dict) { return Tensor(self); })
