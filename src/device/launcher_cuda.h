@@ -522,3 +522,82 @@ inline DEVICE uint16_t float_to_half(float f) {
                  : "f"(f));
     return tmp.u16[0];
 }
+
+#include "cutlass/gemm/device/gemm.h"
+
+template <
+    typename input_t,
+    typename output_t,
+    bool IS_A_ROW_MAJOR,
+    bool IS_B_ROW_MAJOR,
+    bool IS_C_ROW_MAJOR>
+int gemm_ref(
+    int M,
+    int N,
+    int K,
+    float alpha,
+    input_t const *A,
+    int lda,
+    input_t const *B,
+    int ldb,
+    float beta,
+    output_t *C,
+    int ldc) {
+    // 128x128x8 threadblock tile size (chosen by default).
+    //
+    // To keep the interface manageable, several helpers are defined for plausible compositions
+    // including the following example for single-precision GEMM. Typical values are used as
+    // default template arguments. See `cutlass/gemm/device/default_gemm_configuration.h` for more details.
+    //
+    // To view the full gemm device API interface, see `cutlass/gemm/device/gemm.h`
+
+    using ColumnMajor = cutlass::layout::ColumnMajor;
+    using RowMajor = cutlass::layout::RowMajor;
+
+    using LayoutA = std::conditional_t<IS_A_ROW_MAJOR, RowMajor, ColumnMajor>;
+    using LayoutB = std::conditional_t<IS_B_ROW_MAJOR, RowMajor, ColumnMajor>;
+    using LayoutC = std::conditional_t<IS_C_ROW_MAJOR, RowMajor, ColumnMajor>;
+
+    using CutlassGemm = cutlass::gemm::device::Gemm<input_t,  // Data-type of A matrix
+                                                    LayoutA,  // Layout of A matrix
+                                                    input_t,  // Data-type of B matrix
+                                                    LayoutB,  // Layout of B matrix
+                                                    output_t, // Data-type of C matrix
+                                                    LayoutC>; // Layout of C matrix
+
+    // Define a CUTLASS GEMM type
+    CutlassGemm gemm_operator;
+
+    // Construct the CUTLASS GEMM arguments object.
+    //
+    // One of CUTLASS's design patterns is to define gemm argument objects that are constructible
+    // in host code and passed to kernels by value. These may include pointers, strides, scalars,
+    // and other arguments needed by Gemm and its components.
+    //
+    // The benefits of this pattern are (1.) a structured, composable strategy for passing host-constructible
+    // arguments to kernels and (2.) minimized initialization overhead on kernel entry.
+    //
+    typename CutlassGemm::Arguments args({M, N, K},      // Gemm Problem dimensions
+                                         {A, lda},       // Tensor-ref for source matrix A
+                                         {B, ldb},       // Tensor-ref for source matrix B
+                                         {C, ldc},       // Tensor-ref for source matrix C
+                                         {C, ldc},       // Tensor-ref for destination matrix D (may be different memory than source C matrix)
+                                         {alpha, beta}); // Scalars used in the Epilogue
+
+    //
+    // Launch the CUTLASS GEMM kernel.
+    //
+
+    cutlass::Status status = gemm_operator(args);
+
+    //
+    // Return a cudaError_t if the CUTLASS GEMM operator returned an error code.
+    //
+
+    if (status != cutlass::Status::kSuccess) {
+        return -1;
+    }
+
+    // Return success, if no errors were encountered.
+    return 0;
+}

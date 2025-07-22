@@ -7,6 +7,7 @@ include_directories(${ROOTDIR}/src/device)
 include_directories(${ROOTDIR}/src/device/include)
 include_directories(${ROOTDIR}/src/device/utils)
 include_directories(${ROOTDIR}/src/device/utils/memory)
+include_directories(${ROOTDIR}/third_party/cutlass/include)
 
 set(CMAKE_CXX_STANDARD 20)
 
