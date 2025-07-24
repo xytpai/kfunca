@@ -18,7 +18,7 @@ Here are the supported features:
 
 - [x] from_numpy/to_numpy
 - [x] add/sub/mul/div
-- [ ] permute/contiguous
+- [x] permute/contiguous
 - [x] copy
 - [x] sum/mean
 - [ ] sort/topk
@@ -28,7 +28,7 @@ Here are the supported features:
 - [ ] rms_norm
 - [x] causal attention
 - [ ] embedding
-- [ ] matmul
+- [x] matmul
 - [ ] qkv_linear
 
 ---
