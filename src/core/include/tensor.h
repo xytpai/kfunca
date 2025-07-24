@@ -15,6 +15,10 @@
 
 using namespace utils::memory;
 
+inline int maybe_wrap_dim(int d, int ndim) {
+    return d < 0 ? (ndim + d) % ndim : d;
+}
+
 class Tensor;
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse = false);
@@ -145,7 +149,7 @@ public:
         return dim_;
     }
     int64_t shape(int d) const {
-        d = (dim_ + d) % dim_;
+        d = maybe_wrap_dim(d, dim_);
         return shape_[d];
     }
     dim_t &shape() {
@@ -153,6 +157,10 @@ public:
     }
     std::vector<int64_t> sizes() const {
         std::vector<int64_t> vec(shape_.val, shape_.val + dim_);
+        return vec;
+    }
+    std::vector<int64_t> strides() const {
+        std::vector<int64_t> vec(stride_.val, stride_.val + dim_);
         return vec;
     }
     int64_t stride(int d) const {
@@ -206,6 +214,9 @@ public:
     any_t item(const std::vector<int64_t> &indices) const;
     Tensor &fill_(const any_t &value);
     int64_t offset(const std::vector<int64_t> &indices) const;
+    Tensor contiguous();
+    Tensor as_strided(const std::vector<int64_t> sizes, const std::vector<int64_t> strides);
+    Tensor permute(const std::vector<int64_t> dims);
 
     Tensor _half() const;
     Tensor _float() const;

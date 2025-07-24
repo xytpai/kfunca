@@ -87,6 +87,40 @@ int64_t Tensor::offset(const std::vector<int64_t> &indices) const {
     return flat_index;
 }
 
+Tensor Tensor::contiguous() {
+    if (is_contiguous_)
+        return *this;
+    return gpu::clone(*this);
+}
+
+Tensor Tensor::as_strided(const std::vector<int64_t> sizes, const std::vector<int64_t> strides) {
+    Tensor out(*this);
+    bool is_strides_empty = strides.size() == 0;
+    for (int i = 0; i < dim_; i++) {
+        out.shape_[i] = sizes[i];
+        if (!is_strides_empty)
+            out.stride_[i] = strides[i];
+    }
+    out.is_contiguous_ = false;
+    return out;
+}
+
+Tensor Tensor::permute(const std::vector<int64_t> dims) {
+    const auto ndim = dim_;
+    CHECK_FAIL(ndim == dims.size());
+    auto new_sizes = std::vector<int64_t>(ndim);
+    auto new_strides = std::vector<int64_t>(ndim);
+    std::vector<bool> seen_dims(ndim);
+    for (int i = 0; i < ndim; i++) {
+        int d = maybe_wrap_dim(dims[i], ndim);
+        CHECK_FAIL(!seen_dims[d], "permute(): duplicate dims are not allowed.");
+        seen_dims[d] = true;
+        new_sizes[i] = this->shape_[d];
+        new_strides[i] = this->stride_[d];
+    }
+    return as_strided(new_sizes, new_strides);
+}
+
 Tensor Tensor::_half() const {
     return gpu::convert(*this, ScalarType::Half);
 }
