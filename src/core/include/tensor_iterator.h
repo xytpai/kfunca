@@ -115,7 +115,7 @@ public:
     }
 
     int64_t shape(int dim) const {
-        dim = (ndim_ + dim) % ndim_;
+        dim = maybe_wrap_dim(dim, ndim_);
         return shape_[dim];
     }
 

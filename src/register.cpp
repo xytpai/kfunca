@@ -113,6 +113,8 @@ PYBIND11_MODULE(kfunca, m) {
             return reinterpret_cast<uintptr_t>(self.data_ptr());
         })
         .def("storage_ref_count", &Tensor::storage_ref_count)
+        .def("contiguous", &Tensor::contiguous)
+        .def("permute", &Tensor::permute)
         .def("__add__", &Tensor::operator+)
         .def("__add__", [](const Tensor &self, double scalar) {
             return self + empty_like(self).fill_(any_t{scalar});
