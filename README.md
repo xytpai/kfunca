@@ -18,10 +18,10 @@ Here are the supported features:
 
 - [x] from_numpy/to_numpy
 - [x] add/sub/mul/div
-- [x] permute/contiguous
-- [x] copy
+- [x] permute/contiguous/copy
 - [x] sum/mean
 - [ ] sort/topk
+- [ ] concat/split/stack
 
 > Neural network operator:
 
