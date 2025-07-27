@@ -23,13 +23,13 @@ void DeviceAllocator::print() {
         h_size = POOL_SIZE_BOUNDS[p];
         std::cout << "[" << l_size << ", " << h_size << "):";
         for (auto item : unused_blocks_[p]) {
-            std::cout << item->id << ":" << item->size << ":" << item->in_use << ", ";
+            std::cout << item->id << ":" << item->size << ":" << item->ptr << ", ";
         }
         std::cout << std::endl;
     }
     std::cout << "Active Blocks:\n";
     for (auto item : active_blocks_) {
-        std::cout << item->id << ":" << item->size << ":" << item->in_use << ", ";
+        std::cout << item->id << ":" << item->size << ":" << item->ptr << ", ";
     }
     std::cout << std::endl;
 }

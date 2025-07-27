@@ -12,7 +12,6 @@ void gemm_kernel(Tensor &out, const Tensor &a, const Tensor &b, float alpha, flo
         m *= d;
     }
     int k = a.shape(-1);
-    std::cout << k << "\n";
     m /= k;
     CHECK_FAIL(b.dim() == 2 && b.shape(0) == k);
     CHECK_FAIL(a.dtype() == b.dtype());

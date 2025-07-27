@@ -12,10 +12,19 @@
 #include "unary_ops.h"
 #include "nullary_ops.h"
 #include "reduce_ops.h"
+#include "sort_ops.h"
 #include "norm_ops.h"
 #include "accumulate_type.h"
 
 using namespace utils::memory;
+
+void Tensor::new_storage_(int device) {
+    auto [min_offset, max_offset] = compute_offset_range<dim_t>(shape_, stride_, dim_);
+    size_t offset_range = max_offset - min_offset + 1;
+    size_t bytes = offset_range * element_size(dtype_);
+    auto ptr = new TensorStorage(bytes, device);
+    storage_.unsafe_set_ptr(ptr);
+}
 
 std::ostream &operator<<(std::ostream &os, const dim_t &d) {
     os << "dim_t:";
@@ -32,6 +41,20 @@ Tensor::Tensor(std::vector<int64_t> &shape, ScalarType dtype) {
     numel_ = 1;
     for (int i = dim_ - 1; i >= 0; i--) {
         stride_[i] = numel_;
+        numel_ *= shape[i];
+        shape_[i] = shape[i];
+    }
+}
+
+Tensor::Tensor(std::vector<int64_t> &shape, std::vector<int64_t> &strides, ScalarType dtype) {
+    CHECK_FAIL(shape.size() <= MAX_TENSOR_DIMS);
+    CHECK_FAIL(strides.size() <= MAX_TENSOR_DIMS);
+    dtype_ = dtype;
+    dim_ = shape.size();
+    CHECK_FAIL(dim_ == strides.size());
+    numel_ = 1;
+    for (int i = dim_ - 1; i >= 0; i--) {
+        stride_[i] = strides[i];
         numel_ *= shape[i];
         shape_[i] = shape[i];
     }
@@ -87,7 +110,7 @@ int64_t Tensor::offset(const std::vector<int64_t> &indices) const {
     return flat_index;
 }
 
-Tensor Tensor::contiguous() {
+Tensor Tensor::contiguous() const {
     if (is_contiguous_)
         return *this;
     return gpu::clone(*this);
@@ -148,6 +171,12 @@ Tensor empty_like(const Tensor &self) {
     return output;
 }
 
+Tensor empty_strided(std::vector<int64_t> shape, std::vector<int64_t> strides, ScalarType dtype, int device) {
+    Tensor output(shape, strides, dtype);
+    output.new_storage_(device);
+    return output;
+}
+
 Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype) {
     auto sizes = self.sizes();
     if (dim >= 0) {
@@ -171,6 +200,7 @@ void print_tensor_(std::ostream &os, const Tensor &t, std::vector<int64_t> indic
         DISPATCH_BASIC_TYPES(t.dtype(), "print_tensor_", [&]() {
             using acc_t = acc_type<scalar_t>;
             os << std::fixed << std::showpos << std::setprecision(5) << (acc_t)(*reinterpret_cast<scalar_t *>(&result_));
+            os << std::noshowpos;
         });
         return;
     }
@@ -247,12 +277,20 @@ Tensor &Tensor::operator/=(const Tensor &other) {
     return gpu::div_(*this, other);
 }
 
+Tensor &Tensor::copy_(const Tensor &other) {
+    return gpu::copy_(*this, other);
+}
+
 Tensor Tensor::sum(int64_t reduce_dim) const {
     return gpu::sum(*this, reduce_dim);
 }
 
 Tensor Tensor::mean(int64_t reduce_dim) const {
     return gpu::mean(*this, reduce_dim);
+}
+
+std::tuple<Tensor, Tensor> Tensor::sort(int64_t dim, bool descending) const {
+    return gpu::sort(*this, dim, descending);
 }
 
 std::tuple<Tensor, Tensor> Tensor::mean_var(int64_t reduce_dim, bool take_sqrt) const {

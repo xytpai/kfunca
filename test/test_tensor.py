@@ -1,4 +1,5 @@
 import kfunca
+import torch
 import numpy as np
 
 print(kfunca.__file__)
@@ -156,6 +157,40 @@ class TestTensorImpl(object):
         arr_gpu = kfunca.from_numpy(arr, 0)
         arr_gpu_p = arr_gpu.permute([2,1,0,3]).contiguous()
         assert(np.allclose(arr_gpu_p.numpy(), arr_p, rtol=1e-3, atol=1e-3) == True)
+    
+    def test_sort_small_slice(self):
+        shapes = [
+            [2, 3, 4],
+            [23, 11, 23],
+            [11, 23, 64],
+            [13, 65, 1049],
+            [5, 11, 22223],
+        ]
+        dims = [2, 1, 0]
+        descendings = [False, True]
+        dtypes = [np.float32, np.double, np.int32]
+        for dtype in dtypes:
+            print(dtype)
+            for descending in descendings:
+                for dim in dims:
+                    for shape in shapes:
+                        # print(shape, dim, descending)
+                        arr = np.random.uniform(-1000, 1000, size=shape).astype(dtype)
+                        arr_t = torch.from_numpy(arr)
+                        res, ind = torch.sort(arr_t, dim=dim, descending=descending, stable=True)
+                        arr_gpu = kfunca.from_numpy(arr, 0)
+                        res_gpu, ind_gpu = arr_gpu.sort(dim, descending)
+                        assert(np.allclose(res_gpu.numpy(), res.numpy(), rtol=1e-3, atol=1e-3) == True)
+                        assert(np.allclose(ind_gpu.numpy(), ind.numpy(), rtol=1e-3, atol=1e-3) == True)
+    
+    def test_sort_large_slice(self):
+        arr = np.random.uniform(-1000, 1000, size=(4, 1024000)).astype(np.float32)
+        res = np.sort(arr, axis=1)
+        ind = np.argsort(arr, axis=1, kind='stable')
+        arr_gpu = kfunca.from_numpy(arr, 0)
+        res_gpu, ind_gpu = arr_gpu.sort(1, False)
+        assert(np.allclose(res_gpu.numpy(), res, rtol=1e-3, atol=1e-3) == True)
+        assert(np.allclose(ind_gpu.numpy(), ind, rtol=1e-3, atol=1e-3) == True)
 
 
 if __name__ == '__main__':
