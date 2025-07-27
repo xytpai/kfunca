@@ -9,4 +9,10 @@ std::tuple<Tensor, Tensor> sort(
     int64_t dim,
     bool descending);
 
+std::tuple<Tensor, Tensor> topk(
+    const Tensor &self,
+    int64_t k,
+    int64_t dim,
+    bool largest);
+
 } // namespace gpu

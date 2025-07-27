@@ -116,7 +116,9 @@ Tensor Tensor::contiguous() const {
     return gpu::clone(*this);
 }
 
-Tensor Tensor::as_strided(const std::vector<int64_t> sizes, const std::vector<int64_t> strides) {
+Tensor Tensor::as_strided(const std::vector<int64_t> sizes,
+                          const std::vector<int64_t> strides,
+                          int64_t storage_offset) const {
     Tensor out(*this);
     bool is_strides_empty = strides.size() == 0;
     for (int i = 0; i < dim_; i++) {
@@ -125,10 +127,11 @@ Tensor Tensor::as_strided(const std::vector<int64_t> sizes, const std::vector<in
             out.stride_[i] = strides[i];
     }
     out.is_contiguous_ = false;
+    out.storage_offset_ = storage_offset;
     return out;
 }
 
-Tensor Tensor::permute(const std::vector<int64_t> dims) {
+Tensor Tensor::permute(const std::vector<int64_t> dims) const {
     const auto ndim = dim_;
     CHECK_FAIL(ndim == dims.size());
     auto new_sizes = std::vector<int64_t>(ndim);
@@ -142,6 +145,59 @@ Tensor Tensor::permute(const std::vector<int64_t> dims) {
         new_strides[i] = this->stride_[d];
     }
     return as_strided(new_sizes, new_strides);
+}
+
+Tensor Tensor::slice(int64_t dim, std::optional<int64_t> start, std::optional<int64_t> end, int64_t step) const {
+    auto &self = *this;
+    int64_t ndim = self.dim();
+    dim = maybe_wrap_dim(dim, ndim);
+    auto sizes = self.sizes();
+    auto strides = self.strides();
+    int64_t start_val = start.has_value() ? start.value() : 0;
+    int64_t end_val = end.has_value() ? end.value() : INT64_MAX;
+    CHECK_FAIL(step > 0, "slice step must be positive");
+    if (start_val < 0) {
+        start_val += sizes[dim];
+    }
+    if (end_val < 0) {
+        end_val += sizes[dim];
+    }
+    if (start_val < 0) {
+        start_val = 0;
+    } else if (start_val >= sizes[dim]) {
+        start_val = sizes[dim];
+    }
+    if (end_val < start_val) {
+        end_val = start_val;
+    } else if (end_val >= sizes[dim]) {
+        end_val = sizes[dim];
+    }
+    auto storage_offset = self.storage_offset() + start_val * strides[dim];
+    auto len = end_val - start_val;
+    sizes[dim] = (len + step - 1) / step; // round-up
+    strides[dim] *= step;
+    Tensor result = self.as_strided(sizes, strides, storage_offset);
+    return result;
+}
+
+Tensor Tensor::narrow(int64_t dim, int64_t start, int64_t length) const {
+    auto &self = *this;
+    CHECK_FAIL(self.dim() > 0, "narrow() cannot be applied to a 0-dim tensor.");
+    CHECK_FAIL(length >= 0, "narrow(): length must be non-negative.");
+    auto cur_size = self.shape(dim);
+    if (start < 0) {
+        start = start + cur_size;
+    }
+    CHECK_FAIL(
+        start <= cur_size - length,
+        "start (",
+        start,
+        ") + length (",
+        length,
+        ") exceeds dimension size (",
+        cur_size,
+        ").");
+    return this->slice(dim, start, start + length, 1);
 }
 
 Tensor Tensor::_half() const {
@@ -291,6 +347,10 @@ Tensor Tensor::mean(int64_t reduce_dim) const {
 
 std::tuple<Tensor, Tensor> Tensor::sort(int64_t dim, bool descending) const {
     return gpu::sort(*this, dim, descending);
+}
+
+std::tuple<Tensor, Tensor> Tensor::topk(int64_t k, int64_t dim, bool largest) const {
+    return gpu::topk(*this, k, dim, largest);
 }
 
 std::tuple<Tensor, Tensor> Tensor::mean_var(int64_t reduce_dim, bool take_sqrt) const {

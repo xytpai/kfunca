@@ -116,6 +116,7 @@ PYBIND11_MODULE(kfunca, m) {
         .def("contiguous", &Tensor::contiguous)
         .def("permute", &Tensor::permute)
         .def("sort", &Tensor::sort)
+        .def("topk", &Tensor::topk)
         .def("__add__", &Tensor::operator+)
         .def("__add__", [](const Tensor &self, double scalar) {
             return self + empty_like(self).fill_(any_t{scalar});
