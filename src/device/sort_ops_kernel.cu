@@ -613,3 +613,20 @@ std::tuple<Tensor, Tensor> sort_stable_kernel(
         return std::make_tuple(values_tensor, indices_tensor);
     }
 }
+
+std::tuple<Tensor, Tensor> topk_with_sort(
+    const Tensor &self,
+    int64_t k,
+    int64_t dim,
+    bool largest) {
+    dim = maybe_wrap_dim(dim, self.dim());
+    Tensor sorted_values, sorted_indices;
+    std::tie(sorted_values, sorted_indices) = sort_stable_kernel(self, dim, largest);
+    auto sizes = self.sizes();
+    sizes[dim] = k;
+    Tensor values = empty(sizes, self.dtype(), self.device());
+    Tensor indices = empty(sizes, ScalarType::Long, self.device());
+    values.copy_(sorted_values.narrow(dim, 0, k));
+    indices.copy_(sorted_indices.narrow(dim, 0, k));
+    return std::make_tuple(values, indices);
+}

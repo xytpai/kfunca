@@ -10,4 +10,12 @@ std::tuple<Tensor, Tensor> sort(
     return sort_stable_kernel(self, dim, descending);
 }
 
+std::tuple<Tensor, Tensor> topk(
+    const Tensor &self,
+    int64_t k,
+    int64_t dim,
+    bool largest) {
+    return topk_with_sort(self, k, dim, largest);
+}
+
 } // namespace gpu

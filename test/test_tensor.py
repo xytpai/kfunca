@@ -191,6 +191,36 @@ class TestTensorImpl(object):
         res_gpu, ind_gpu = arr_gpu.sort(1, False)
         assert(np.allclose(res_gpu.numpy(), res, rtol=1e-3, atol=1e-3) == True)
         assert(np.allclose(ind_gpu.numpy(), ind, rtol=1e-3, atol=1e-3) == True)
+    
+    def test_topk_small(self):
+        shapes = [
+            [13, 65, 1049],
+            [33, 22, 22223],
+        ]
+        dims = [2, 1, 0]
+        descendings = [False, True]
+        dtypes = [np.float32, np.double, np.int32]
+        k = 8
+        for dtype in dtypes:
+            print(dtype)
+            for descending in descendings:
+                for dim in dims:
+                    for shape in shapes:
+                        arr = np.random.uniform(-100000, 100000, size=shape).astype(dtype)
+                        arr_t = torch.from_numpy(arr)
+                        res, ind = torch.topk(arr_t, k, dim=dim, largest=descending)
+                        arr_gpu = kfunca.from_numpy(arr, 0)
+                        res_gpu, ind_gpu = arr_gpu.topk(k, dim, descending)
+                        assert(np.allclose(res_gpu.numpy(), res.numpy(), rtol=1e-3, atol=1e-3) == True)
+    
+    def test_topk_large(self):
+        for k in [2049, 22223]:
+            arr = np.random.uniform(-10000, 10000, size=(4, 1024000)).astype(np.float32)
+            arr_t = torch.from_numpy(arr)
+            res, ind = torch.topk(arr_t, k, dim=1, largest=True)
+            arr_gpu = kfunca.from_numpy(arr, 0)
+            res_gpu, ind_gpu = arr_gpu.topk(k, 1, True)
+            assert(np.allclose(res_gpu.numpy(), res.numpy(), rtol=1e-3, atol=1e-3) == True)
 
 
 if __name__ == '__main__':

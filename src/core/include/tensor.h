@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <tuple>
+#include <optional>
 
 #include "exception.h"
 #include "data_ptr.h"
@@ -109,6 +110,7 @@ class Tensor {
     ScalarType dtype_;
     int64_t numel_;
     intrusive_ptr<TensorStorage> storage_;
+    int64_t storage_offset_ = 0;
     bool is_contiguous_ = true;
 
     void new_storage_(int device);
@@ -131,7 +133,8 @@ public:
     Tensor(const Tensor &other) :
         dim_(other.dim_), shape_(other.shape_), stride_(other.stride_),
         dtype_(other.dtype_), numel_(other.numel_),
-        storage_(other.storage_), is_contiguous_(other.is_contiguous_) {
+        storage_(other.storage_), storage_offset_(other.storage_offset_),
+        is_contiguous_(other.is_contiguous_) {
     }
     Tensor &operator=(const Tensor &other) {
         dim_ = other.dim_;
@@ -140,6 +143,7 @@ public:
         dtype_ = other.dtype_;
         numel_ = other.numel_;
         storage_ = other.storage_;
+        storage_offset_ = other.storage_offset_;
         is_contiguous_ = other.is_contiguous_;
         return *this;
     }
@@ -177,17 +181,20 @@ public:
         return numel_;
     }
     void *data_ptr() const {
-        return storage_.get()->data_ptr();
+        return (char *)storage_.get()->data_ptr() + storage_offset_ * element_size(dtype_);
     }
     template <typename T>
     T *data_ptr() const {
-        return reinterpret_cast<T *>(storage_.get()->data_ptr());
+        return reinterpret_cast<T *>(storage_.get()->data_ptr()) + storage_offset_;
     }
     size_t storage_bytes() const {
         return storage_.get()->size();
     }
     size_t storage_ref_count() const {
         return storage_.ref_count();
+    }
+    int64_t storage_offset() const {
+        return storage_offset_;
     }
     intrusive_ptr<TensorStorage> storage() const {
         return storage_;
@@ -216,8 +223,10 @@ public:
     Tensor &fill_(const any_t &value);
     int64_t offset(const std::vector<int64_t> &indices) const;
     Tensor contiguous() const;
-    Tensor as_strided(const std::vector<int64_t> sizes, const std::vector<int64_t> strides);
-    Tensor permute(const std::vector<int64_t> dims);
+    Tensor as_strided(const std::vector<int64_t> sizes, const std::vector<int64_t> strides, int64_t storage_offset = 0) const;
+    Tensor permute(const std::vector<int64_t> dims) const;
+    Tensor slice(int64_t dim, std::optional<int64_t> start, std::optional<int64_t> end, int64_t step) const;
+    Tensor narrow(int64_t dim, int64_t start, int64_t length) const;
 
     Tensor _half() const;
     Tensor _float() const;
@@ -234,6 +243,7 @@ public:
     Tensor sum(int64_t reduce_dim) const;
     Tensor mean(int64_t reduce_dim) const;
     std::tuple<Tensor, Tensor> sort(int64_t dim, bool descending) const;
+    std::tuple<Tensor, Tensor> topk(int64_t k, int64_t dim, bool largest) const;
     std::tuple<Tensor, Tensor> mean_var(int64_t reduce_dim, bool take_sqrt) const;
     std::tuple<Tensor, Tensor> norm_stat(int64_t dim) const;
 };
