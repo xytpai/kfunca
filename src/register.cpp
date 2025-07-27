@@ -38,6 +38,7 @@ Tensor from_numpy(py::array array, int device) {
 }
 
 py::array to_numpy(const Tensor &t) {
+    CHECK_FAIL(t.is_contiguous());
 #define HANDLE_DTYPE(cpp_type, scalar_type, ...)     \
     case ScalarType::scalar_type: {                  \
         py::array_t<cpp_type> array(t.sizes());      \
@@ -117,6 +118,35 @@ PYBIND11_MODULE(kfunca, m) {
         .def("permute", &Tensor::permute)
         .def("sort", &Tensor::sort)
         .def("topk", &Tensor::topk)
+        .def("__getitem__", [](Tensor &self, py::object key) {
+            Tensor output = self;
+            if (py::isinstance<py::tuple>(key)) {
+                auto t = key.cast<py::tuple>();
+                CHECK_FAIL(t.size() == self.dim());
+                int dim = 0;
+                for (auto item : t) {
+                    if (py::isinstance<py::slice>(item)) {
+                        auto s = item.cast<py::slice>();
+                        size_t start, end, step, len;
+                        s.compute(output.shape(dim), &start, &end, &step, &len);
+                        output = output.slice(dim, start, end, step);
+                        dim++;
+                    } else if (py::isinstance<py::int_>(item)) {
+                        size_t idx = item.cast<size_t>();
+                        output = output.select(dim, idx);
+                    }
+                }
+            } else if (py::isinstance<py::slice>(key)) {
+                auto s = key.cast<py::slice>();
+                size_t start, end, step, len;
+                s.compute(self.shape(0), &start, &end, &step, &len);
+                output = output.slice(0, start, end, step);
+            } else {
+                size_t idx = key.cast<size_t>();
+                output = output.select(0, idx);
+            }
+            return output;
+        })
         .def("__add__", &Tensor::operator+)
         .def("__add__", [](const Tensor &self, double scalar) {
             return self + empty_like(self).fill_(any_t{scalar});
