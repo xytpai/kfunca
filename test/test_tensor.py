@@ -174,7 +174,7 @@ class TestTensorImpl(object):
             for descending in descendings:
                 for dim in dims:
                     for shape in shapes:
-                        print(shape, dim, descending)
+                        # print(shape, dim, descending)
                         arr = np.random.uniform(-1000, 1000, size=shape).astype(dtype)
                         arr_t = torch.from_numpy(arr)
                         res, ind = torch.sort(arr_t, dim=dim, descending=descending, stable=True)
