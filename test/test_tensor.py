@@ -155,7 +155,7 @@ class TestTensorImpl(object):
         arr = np.random.uniform(-10, 10, size=(16, 8, 64, 11)) # 0,1,2,3
         arr_p = arr.transpose(2,1,0,3)
         arr_gpu = kfunca.from_numpy(arr, 0)
-        arr_gpu_p = arr_gpu.permute([2,1,0,3]).contiguous()
+        arr_gpu_p = arr_gpu.permute(2,1,0,3).contiguous()
         assert(np.allclose(arr_gpu_p.numpy(), arr_p, rtol=1e-3, atol=1e-3) == True)
     
     def test_sort_small_slice(self):

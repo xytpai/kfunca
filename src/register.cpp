@@ -115,7 +115,15 @@ PYBIND11_MODULE(kfunca, m) {
         })
         .def("storage_ref_count", &Tensor::storage_ref_count)
         .def("contiguous", &Tensor::contiguous)
-        .def("permute", &Tensor::permute)
+        .def("permute", [](Tensor &self, py::args args) {
+            CHECK_FAIL(args.size() == self.dim());
+            std::vector<int64_t> dims;
+            for (auto arg : args) {
+                size_t idx = arg.cast<size_t>();
+                dims.emplace_back(idx);
+            }
+            return self.permute(dims);
+        })
         .def("sort", &Tensor::sort)
         .def("topk", &Tensor::topk)
         .def("__getitem__", [](Tensor &self, py::object key) {
