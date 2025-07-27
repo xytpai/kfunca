@@ -119,13 +119,24 @@ Tensor Tensor::contiguous() const {
 Tensor Tensor::as_strided(const std::vector<int64_t> sizes,
                           const std::vector<int64_t> strides,
                           int64_t storage_offset) const {
+    // in-bounds check
+    auto ndim = sizes.size();
+    CHECK_FAIL(ndim == strides.size());
+    auto [min_offset, max_offset] = compute_offset_range(sizes, strides, ndim);
+    min_offset += storage_offset;
+    max_offset += storage_offset;
+    CHECK_FAIL(min_offset >= 0);
+    CHECK_FAIL(max_offset * element_size(dtype_) < this->storage_bytes());
+    // create tensor view
     Tensor out(*this);
-    bool is_strides_empty = strides.size() == 0;
-    for (int i = 0; i < dim_; i++) {
+    out.dim_ = ndim;
+    int64_t numel = 1;
+    for (int i = 0; i < ndim; i++) {
         out.shape_[i] = sizes[i];
-        if (!is_strides_empty)
-            out.stride_[i] = strides[i];
+        numel *= sizes[i];
+        out.stride_[i] = strides[i];
     }
+    out.numel_ = numel;
     out.is_contiguous_ = false;
     out.storage_offset_ = storage_offset;
     return out;
@@ -177,6 +188,30 @@ Tensor Tensor::slice(int64_t dim, std::optional<int64_t> start, std::optional<in
     sizes[dim] = (len + step - 1) / step; // round-up
     strides[dim] *= step;
     Tensor result = self.as_strided(sizes, strides, storage_offset);
+    return result;
+}
+
+Tensor Tensor::select(int64_t dim, int64_t index) const {
+    auto &self = *this;
+    int64_t ndim = self.dim();
+    if (ndim == 0) {
+        CHECK_FAIL(false, "select() cannot be applied to a 0-dim tensor.");
+    }
+    dim = maybe_wrap_dim(dim, ndim);
+    auto size = self.shape(dim);
+    if (size <= -1 - index || size <= index) {
+        CHECK_FAIL(false);
+    }
+    if (index < 0) {
+        index += size;
+    }
+    Tensor result;
+    auto sizes = self.sizes();
+    auto strides = self.strides();
+    auto storage_offset = self.storage_offset() + index * strides[dim];
+    sizes.erase(sizes.begin() + dim);
+    strides.erase(strides.begin() + dim);
+    result = self.as_strided(sizes, strides, storage_offset);
     return result;
 }
 
