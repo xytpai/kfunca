@@ -119,10 +119,18 @@ PYBIND11_MODULE(kfunca, m) {
             CHECK_FAIL(args.size() == self.dim());
             std::vector<int64_t> dims;
             for (auto arg : args) {
-                size_t idx = arg.cast<size_t>();
+                int64_t idx = arg.cast<int64_t>();
                 dims.emplace_back(idx);
             }
             return self.permute(dims);
+        })
+        .def("view", [](Tensor &self, py::args args) {
+            std::vector<int64_t> dims;
+            for (auto arg : args) {
+                int64_t idx = arg.cast<int64_t>();
+                dims.emplace_back(idx);
+            }
+            return self.view(dims);
         })
         .def("sort", &Tensor::sort)
         .def("topk", &Tensor::topk)
@@ -140,7 +148,7 @@ PYBIND11_MODULE(kfunca, m) {
                         output = output.slice(dim, start, end, step);
                         dim++;
                     } else if (py::isinstance<py::int_>(item)) {
-                        size_t idx = item.cast<size_t>();
+                        int64_t idx = item.cast<int64_t>();
                         output = output.select(dim, idx);
                     }
                 }
@@ -150,7 +158,7 @@ PYBIND11_MODULE(kfunca, m) {
                 s.compute(self.shape(0), &start, &end, &step, &len);
                 output = output.slice(0, start, end, step);
             } else {
-                size_t idx = key.cast<size_t>();
+                int64_t idx = key.cast<int64_t>();
                 output = output.select(0, idx);
             }
             return output;

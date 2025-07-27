@@ -2,6 +2,7 @@ import kfunca
 import numpy as np
 import torch
 import torch.nn.functional as F
+from common import assert_allclose
 
 print(kfunca.__file__)
 
@@ -29,7 +30,7 @@ class TestNN(object):
             k_ref = torch.from_numpy(k_)
             v_ref = torch.from_numpy(v_)
             out_ref = F.scaled_dot_product_attention(q_ref, k_ref, v_ref, is_causal=True).numpy()
-            assert(np.allclose(out, out_ref, rtol=1e-3, atol=1e-3) == True)
+            assert_allclose(out, out_ref)
 
 
 if __name__ == '__main__':

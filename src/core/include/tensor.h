@@ -223,11 +223,12 @@ public:
     Tensor &fill_(const any_t &value);
     int64_t offset(const std::vector<int64_t> &indices) const;
     Tensor contiguous() const;
-    Tensor as_strided(const std::vector<int64_t> sizes, const std::vector<int64_t> strides, int64_t storage_offset = 0) const;
+    Tensor as_strided(std::vector<int64_t> sizes, std::vector<int64_t> strides, int64_t storage_offset = 0) const;
     Tensor permute(const std::vector<int64_t> dims) const;
     Tensor slice(int64_t dim, std::optional<int64_t> start, std::optional<int64_t> end, int64_t step) const;
     Tensor select(int64_t dim, int64_t index) const;
     Tensor narrow(int64_t dim, int64_t start, int64_t length) const;
+    Tensor view(std::vector<int64_t> sizes) const;
 
     Tensor _half() const;
     Tensor _float() const;

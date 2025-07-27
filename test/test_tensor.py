@@ -1,6 +1,7 @@
 import kfunca
 import torch
 import numpy as np
+from common import assert_allclose
 
 print(kfunca.__file__)
 
@@ -9,7 +10,7 @@ class TestTensorImpl(object):
     def test_tensor_impl(self):
         arr = np.random.uniform(-10, 10, size=(2, 3))
         arr_gpu = kfunca.from_numpy(arr, 0)
-        assert(np.allclose(arr, arr_gpu.numpy()) == True)
+        assert_allclose(arr, arr_gpu)
     
     def test_tensor_add(self):
         for shape in ((2,3), (1000), (12,11,3331)):
@@ -18,12 +19,12 @@ class TestTensorImpl(object):
             arr_gpu = kfunca.from_numpy(arr, 0)
             arr_gpu_2 = arr_gpu + arr_gpu
             arr_gpu_2_cpu = arr_gpu_2.numpy()
-            assert(np.allclose(arr_2, arr_gpu_2_cpu) == True)
+            assert_allclose(arr_2, arr_gpu_2_cpu)
             arr1 = np.random.uniform(-10, 10, size=shape).astype(np.int32)
             arr2 = np.random.uniform(-10, 10, size=shape).astype(np.float32)
             out = arr1 + arr2
             out_gpu = kfunca.from_numpy(arr1, 0) + kfunca.from_numpy(arr2, 0)
-            assert(np.allclose(out, out_gpu.numpy()) == True)
+            assert_allclose(out, out_gpu)
 
     def test_inplace_op(self):
         shape1 = (5,7,11)
@@ -36,35 +37,35 @@ class TestTensorImpl(object):
         arr1 += arr2
         arr1_gpu += arr2_gpu
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
         arr1 -= arr2
         arr1_gpu -= arr2_gpu
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
         arr1 *= arr2
         arr1_gpu *= arr2_gpu
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
         arr1 /= arr2
         arr1_gpu /= arr2_gpu
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
         arr1 += 2
         arr1_gpu += 2
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
         arr1 -= 3
         arr1_gpu -= 3
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
         arr1 *= 4
         arr1_gpu *= 4
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
         arr1 /= 5
         arr1_gpu /= 5
         assert(addr1 == arr1_gpu.data_ptr())
-        assert(np.allclose(arr1, arr1_gpu.numpy()) == True)
+        assert_allclose(arr1, arr1_gpu)
 
     def test_data_ptr(self):
         import copy
@@ -98,12 +99,12 @@ class TestTensorImpl(object):
                     arr2 = np.random.uniform(-10, 10, size=shape[1]).astype(np.float32)
                     out = eval("arr1 {} arr2".format(op))
                     out_gpu = eval("kfunca.from_numpy(arr1, 0) {} kfunca.from_numpy(arr2, 0)".format(op))
-                    assert(np.allclose(out, out_gpu.numpy()) == True)
+                    assert_allclose(out, out_gpu)
                     arr1 = np.random.uniform(-10, 10, size=shape[0]).astype(np.int32)
                     arr2 = np.random.uniform(-10, 10, size=shape[1]).astype(np.float32)
                     out = eval("arr1 {} arr2".format(op))
                     out_gpu = eval("kfunca.from_numpy(arr1, 0) {} kfunca.from_numpy(arr2, 0)".format(op))
-                    assert(np.allclose(out, out_gpu.numpy()) == True)
+                    assert_allclose(out, out_gpu)
     
     def test_reduce(self):
         for op in ['sum', 'mean']:
@@ -113,7 +114,7 @@ class TestTensorImpl(object):
                 arr_sum = eval("np.{}(arr, axis=dim, keepdims=True)".format(op))
                 arr_gpu = kfunca.from_numpy(arr, 0)
                 arr_gpu_sum = eval("arr_gpu.{}(dim)".format(op))
-                assert(np.allclose(arr_sum, arr_gpu_sum.numpy(), rtol=1e-2, atol=1e-2) == True)
+                assert_allclose(arr_sum, arr_gpu_sum, atol=1e-2, rtol=1e-2)
     
     def test_mean_std(self):
         shape = (13, 325, 127)
@@ -125,8 +126,8 @@ class TestTensorImpl(object):
         var = ((arr_ - mean) * (arr_ - mean)).sum(dim)
         var = var / divisor
         mean_var = arr_.mean_var(dim, False)
-        assert(np.allclose(mean.numpy(), mean_var[0].numpy(), rtol=1e-2, atol=1e-2) == True)
-        assert(np.allclose(var.numpy(), mean_var[1].numpy(), rtol=1e-2, atol=1e-2) == True)
+        assert_allclose(mean, mean_var[0], atol=1e-2, rtol=1e-2)
+        assert_allclose(var, mean_var[1], atol=1e-2, rtol=1e-2)
         kfunca.memstat()
     
     def test_norm_stat(self):
@@ -140,8 +141,8 @@ class TestTensorImpl(object):
             var = np.sum(var, axis=dim, keepdims=True)
             invstd = 1.0 / np.sqrt(var / divisor)
             mean_invstd = arr_.norm_stat(dim)
-            assert(np.allclose(mean, mean_invstd[0].numpy(), rtol=1e-3, atol=1e-3) == True)
-            assert(np.allclose(invstd, mean_invstd[1].numpy(), rtol=1e-3, atol=1e-3) == True)
+            assert_allclose(mean, mean_invstd[0])
+            assert_allclose(invstd, mean_invstd[1])
     
     def test_convert(self):
         arr = np.random.uniform(-10, 10, size=(2, 3))
@@ -149,14 +150,14 @@ class TestTensorImpl(object):
         arr_gpu_half = arr_gpu.half()
         arr_gpu *= arr_gpu
         arr_gpu_half *= arr_gpu_half
-        assert(np.allclose(arr_gpu.numpy(), arr_gpu_half.float().numpy(), rtol=1e-3, atol=1e-3) == True)
+        assert_allclose(arr_gpu, arr_gpu_half.float())
     
     def test_permute(self):
         arr = np.random.uniform(-10, 10, size=(16, 8, 64, 11)) # 0,1,2,3
         arr_p = arr.transpose(2,1,0,3)
         arr_gpu = kfunca.from_numpy(arr, 0)
         arr_gpu_p = arr_gpu.permute(2,1,0,3).contiguous()
-        assert(np.allclose(arr_gpu_p.numpy(), arr_p, rtol=1e-3, atol=1e-3) == True)
+        assert_allclose(arr_gpu_p, arr_p)
     
     def test_sort_small_slice(self):
         shapes = [
@@ -180,8 +181,8 @@ class TestTensorImpl(object):
                         res, ind = torch.sort(arr_t, dim=dim, descending=descending, stable=True)
                         arr_gpu = kfunca.from_numpy(arr, 0)
                         res_gpu, ind_gpu = arr_gpu.sort(dim, descending)
-                        assert(np.allclose(res_gpu.numpy(), res.numpy(), rtol=1e-3, atol=1e-3) == True)
-                        assert(np.allclose(ind_gpu.numpy(), ind.numpy(), rtol=1e-3, atol=1e-3) == True)
+                        assert_allclose(res_gpu, res)
+                        assert_allclose(ind_gpu, ind)
     
     def test_sort_large_slice(self):
         arr = np.random.uniform(-1000, 1000, size=(4, 1024000)).astype(np.float32)
@@ -189,8 +190,8 @@ class TestTensorImpl(object):
         ind = np.argsort(arr, axis=1, kind='stable')
         arr_gpu = kfunca.from_numpy(arr, 0)
         res_gpu, ind_gpu = arr_gpu.sort(1, False)
-        assert(np.allclose(res_gpu.numpy(), res, rtol=1e-3, atol=1e-3) == True)
-        assert(np.allclose(ind_gpu.numpy(), ind, rtol=1e-3, atol=1e-3) == True)
+        assert_allclose(res_gpu, res)
+        assert_allclose(ind_gpu, ind)
     
     def test_topk_small(self):
         shapes = [
@@ -211,7 +212,7 @@ class TestTensorImpl(object):
                         res, ind = torch.topk(arr_t, k, dim=dim, largest=descending)
                         arr_gpu = kfunca.from_numpy(arr, 0)
                         res_gpu, ind_gpu = arr_gpu.topk(k, dim, descending)
-                        assert(np.allclose(res_gpu.numpy(), res.numpy(), rtol=1e-3, atol=1e-3) == True)
+                        assert_allclose(res_gpu, res)
     
     def test_topk_large(self):
         for k in [2049, 22223]:
@@ -220,7 +221,7 @@ class TestTensorImpl(object):
             res, ind = torch.topk(arr_t, k, dim=1, largest=True)
             arr_gpu = kfunca.from_numpy(arr, 0)
             res_gpu, ind_gpu = arr_gpu.topk(k, 1, True)
-            assert(np.allclose(res_gpu.numpy(), res.numpy(), rtol=1e-3, atol=1e-3) == True)
+            assert_allclose(res_gpu, res)
     
     def test_tensor_slice(self):
         arr = np.random.uniform(-10000, 10000, size=(11, 155, 33, 5)).astype(np.float32)
@@ -228,7 +229,15 @@ class TestTensorImpl(object):
         arr_gpu = kfunca.from_numpy(arr, 0)
         arr_t_ = arr_t[3, 3:8, 4:11:2]
         arr_gpu_ = arr_gpu[3, 3:8, 4:11:2]
-        assert(np.allclose(arr_t_.numpy(), arr_gpu_.contiguous().numpy(), rtol=1e-3, atol=1e-3) == True)
+        assert_allclose(arr_t_, arr_gpu_.contiguous())
+    
+    def test_view(self):
+        arr = np.random.uniform(-10000, 10000, size=(5,2,11,23)).astype(np.float32)
+        arr_t = torch.from_numpy(arr)
+        arr_gpu = kfunca.from_numpy(arr, 0)
+        arr_t = arr_t.view(5,-1,23).contiguous() + 1
+        arr_gpu = arr_gpu.view(5,-1,23).contiguous() + 1
+        assert_allclose(arr_t, arr_gpu)
 
 
 if __name__ == '__main__':

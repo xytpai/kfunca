@@ -116,12 +116,21 @@ Tensor Tensor::contiguous() const {
     return gpu::clone(*this);
 }
 
-Tensor Tensor::as_strided(const std::vector<int64_t> sizes,
-                          const std::vector<int64_t> strides,
-                          int64_t storage_offset) const {
-    // in-bounds check
+Tensor Tensor::as_strided(std::vector<int64_t> sizes,
+                          std::vector<int64_t> strides, int64_t storage_offset) const {
     auto ndim = sizes.size();
-    CHECK_FAIL(ndim == strides.size());
+    bool has_strides = strides.size() > 0;
+    if (has_strides) {
+        CHECK_FAIL(ndim == strides.size());
+    } else {
+        strides.reserve(ndim);
+        int64_t cumprod = 1;
+        for (int i = ndim - 1; i >= 0; i--) {
+            strides[i] = cumprod;
+            cumprod *= sizes[i];
+        }
+    }
+    // in-bounds check
     auto [min_offset, max_offset] = compute_offset_range(sizes, strides, ndim);
     min_offset += storage_offset;
     max_offset += storage_offset;
@@ -233,6 +242,29 @@ Tensor Tensor::narrow(int64_t dim, int64_t start, int64_t length) const {
         cur_size,
         ").");
     return this->slice(dim, start, start + length, 1);
+}
+
+Tensor Tensor::view(std::vector<int64_t> sizes) const {
+    CHECK_FAIL(this->is_contiguous_);
+    int64_t cumprod = 1;
+    bool has_neg_dim = false;
+    int64_t neg_dim = -1;
+    for (auto i = 0; i < sizes.size(); ++i) {
+        auto size = sizes[i];
+        if (size < 0) {
+            CHECK_FAIL(has_neg_dim == false);
+            has_neg_dim = true;
+            neg_dim = i;
+        } else {
+            cumprod *= size;
+        }
+    }
+    if (has_neg_dim) {
+        sizes[neg_dim] = this->numel_ / cumprod;
+        cumprod *= sizes[neg_dim];
+    }
+    CHECK_FAIL(cumprod == this->numel_);
+    return this->as_strided(sizes, {});
 }
 
 Tensor Tensor::_half() const {
