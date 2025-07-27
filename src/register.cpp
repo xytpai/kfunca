@@ -130,7 +130,7 @@ PYBIND11_MODULE(kfunca, m) {
             Tensor output = self;
             if (py::isinstance<py::tuple>(key)) {
                 auto t = key.cast<py::tuple>();
-                CHECK_FAIL(t.size() == self.dim());
+                CHECK_FAIL(t.size() <= self.dim());
                 int dim = 0;
                 for (auto item : t) {
                     if (py::isinstance<py::slice>(item)) {

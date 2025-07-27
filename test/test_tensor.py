@@ -223,7 +223,7 @@ class TestTensorImpl(object):
             assert(np.allclose(res_gpu.numpy(), res.numpy(), rtol=1e-3, atol=1e-3) == True)
     
     def test_tensor_slice(self):
-        arr = np.random.uniform(-10000, 10000, size=(11, 155, 33)).astype(np.float32)
+        arr = np.random.uniform(-10000, 10000, size=(11, 155, 33, 5)).astype(np.float32)
         arr_t = torch.from_numpy(arr)
         arr_gpu = kfunca.from_numpy(arr, 0)
         arr_t_ = arr_t[3, 3:8, 4:11:2]
