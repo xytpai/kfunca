@@ -10,6 +10,7 @@
 #include "intrusive_ptr.h"
 #include "scalar_type.h"
 #include "device_allocator.h"
+#include "memory_overlap.h"
 
 #define MAX_TENSOR_DIMS 12
 
@@ -23,6 +24,7 @@ class Tensor;
 Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse = false);
 Tensor empty_like(const Tensor &self);
+Tensor empty_strided(std::vector<int64_t> shape, std::vector<int64_t> strides, ScalarType dtype, int device);
 Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype);
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 std::ostream &operator<<(std::ostream &os, const Tensor &t);
@@ -109,18 +111,17 @@ class Tensor {
     intrusive_ptr<TensorStorage> storage_;
     bool is_contiguous_ = true;
 
-    void new_storage_(int device) {
-        size_t bytes = shape_[0] * stride_[0] * element_size(dtype_);
-        auto ptr = new TensorStorage(bytes, device);
-        storage_.unsafe_set_ptr(ptr);
-    }
+    void new_storage_(int device);
+
     friend Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device);
     friend Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse);
     friend Tensor empty_like(const Tensor &self);
+    friend Tensor empty_strided(std::vector<int64_t> shape, std::vector<int64_t> strides, ScalarType dtype, int device);
     friend Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype);
     friend Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device);
 
     Tensor(std::vector<int64_t> &shape, ScalarType dtype);
+    Tensor(std::vector<int64_t> &shape, std::vector<int64_t> &strides, ScalarType dtype);
     Tensor(int64_t *shape, int ndim, ScalarType dtype, bool inverse);
 
 public:
@@ -214,7 +215,7 @@ public:
     any_t item(const std::vector<int64_t> &indices) const;
     Tensor &fill_(const any_t &value);
     int64_t offset(const std::vector<int64_t> &indices) const;
-    Tensor contiguous();
+    Tensor contiguous() const;
     Tensor as_strided(const std::vector<int64_t> sizes, const std::vector<int64_t> strides);
     Tensor permute(const std::vector<int64_t> dims);
 
@@ -229,8 +230,10 @@ public:
     Tensor &operator*=(const Tensor &other);
     Tensor operator/(const Tensor &other) const;
     Tensor &operator/=(const Tensor &other);
+    Tensor &copy_(const Tensor &other);
     Tensor sum(int64_t reduce_dim) const;
     Tensor mean(int64_t reduce_dim) const;
+    std::tuple<Tensor, Tensor> sort(int64_t dim, bool descending) const;
     std::tuple<Tensor, Tensor> mean_var(int64_t reduce_dim, bool take_sqrt) const;
     std::tuple<Tensor, Tensor> norm_stat(int64_t dim) const;
 };
