@@ -5,7 +5,6 @@ Here are the supported features:
 #### 1. Basic infrastructure
 
 - [x] GPU Launcher
-- [x] Device Allocator
 - [x] Caching Allocator
 - [x] Tensor Implementation
 - [x] Tensor Iterator
@@ -14,14 +13,15 @@ Here are the supported features:
 
 #### 2. GPU Operator
 
-> Structured operator:
+> Basic operator:
 
 - [x] from_numpy/to_numpy
 - [x] add/sub/mul/div
 - [x] permute/contiguous/copy
 - [x] sum/mean
 - [x] sort/topk
-- [ ] slice/concat/split/stack
+- [x] slice/view
+- [ ] concat/split/stack
 
 > Neural network operator:
 

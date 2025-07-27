@@ -1,5 +1,6 @@
 import kfunca
 import numpy as np
+from common import assert_allclose
 
 print(kfunca.__file__)
 
@@ -13,7 +14,7 @@ class TestGemm(object):
         print(a_gpu.sizes(), b_gpu.sizes())
         out_gpu = kfunca.gemm(a_gpu, b_gpu, 1.0, 0.0)
         out = np.matmul(a, b)
-        assert(np.allclose(out, out_gpu.numpy()) == True)
+        assert_allclose(out, out_gpu)
 
 
 if __name__ == '__main__':
