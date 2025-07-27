@@ -20,8 +20,8 @@ Here are the supported features:
 - [x] add/sub/mul/div
 - [x] permute/contiguous/copy
 - [x] sum/mean
-- [ ] sort/topk
-- [ ] concat/split/stack
+- [x] sort/topk
+- [ ] slice/concat/split/stack
 
 > Neural network operator:
 
