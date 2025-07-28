@@ -134,6 +134,7 @@ PYBIND11_MODULE(kfunca, m) {
             }
             return self.view(dims);
         })
+        .def("split", &Tensor::split)
         .def("sort", &Tensor::sort)
         .def("topk", &Tensor::topk)
         .def("__getitem__", [](Tensor &self, py::object key) {

@@ -69,4 +69,23 @@ Tensor concat(const std::vector<Tensor> tensors, int64_t dim) {
     return result;
 }
 
+std::vector<Tensor> tensor_split(const Tensor &self, std::vector<int64_t> indices, int64_t dim) {
+    CHECK_FAIL(
+        self.dim() > 0,
+        "tensor_split expected at least a 1-dimensional tensor, but got a tensor with ",
+        self.dim(),
+        " dims");
+    int64_t dim_ = maybe_wrap_dim(dim, self.dim());
+    int64_t num_indices = indices.size();
+    std::vector<Tensor> splits(num_indices);
+    int64_t start_idx = 0;
+    for (int split_idx = 0; split_idx < num_indices; ++split_idx) {
+        auto end_idx = start_idx + indices[split_idx];
+        splits[split_idx] = self.slice(dim_, start_idx, end_idx);
+        start_idx = end_idx;
+    }
+    CHECK_FAIL(start_idx == self.shape(dim));
+    return splits;
+}
+
 } // namespace gpu
