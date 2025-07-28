@@ -21,7 +21,7 @@ Here are the supported features:
 - [x] sum/mean
 - [x] sort/topk
 - [x] slice/view
-- [ ] concat/split/stack
+- [x] concat/split
 
 > Neural network operator:
 
