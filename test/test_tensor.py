@@ -238,6 +238,20 @@ class TestTensorImpl(object):
         arr_t = arr_t.view(5,-1,23).contiguous() + 1
         arr_gpu = arr_gpu.view(5,-1,23).contiguous() + 1
         assert_allclose(arr_t, arr_gpu)
+    
+    def test_cat(self):
+        arr1 = np.random.uniform(-10000, 10000, size=(5,11,23)).astype(np.float32)
+        arr2 = np.random.uniform(-10000, 10000, size=(5,13,23)).astype(np.float32)
+        arr3 = np.random.uniform(-10000, 10000, size=(5,1,23)).astype(np.float32)
+        arr1_t = torch.from_numpy(arr1)
+        arr2_t = torch.from_numpy(arr2)
+        arr3_t = torch.from_numpy(arr3)
+        arr1_gpu = kfunca.from_numpy(arr1, 0)
+        arr2_gpu = kfunca.from_numpy(arr2, 0)
+        arr3_gpu = kfunca.from_numpy(arr3, 0)
+        arr_t = torch.cat([arr1_t, arr2_t, arr3_t], 1)
+        arr_gpu = kfunca.cat([arr1_gpu, arr2_gpu, arr3_gpu], 1)
+        assert_allclose(arr_t, arr_gpu)
 
 
 if __name__ == '__main__':
