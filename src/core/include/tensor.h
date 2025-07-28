@@ -225,11 +225,12 @@ public:
     Tensor contiguous() const;
     Tensor as_strided(std::vector<int64_t> sizes, std::vector<int64_t> strides, int64_t storage_offset = 0) const;
     Tensor permute(const std::vector<int64_t> dims) const;
-    Tensor slice(int64_t dim, std::optional<int64_t> start, std::optional<int64_t> end, int64_t step) const;
+    Tensor slice(int64_t dim, std::optional<int64_t> start, std::optional<int64_t> end, int64_t step = 1) const;
     Tensor select(int64_t dim, int64_t index) const;
     Tensor narrow(int64_t dim, int64_t start, int64_t length) const;
     Tensor view(std::vector<int64_t> sizes) const;
     bool can_use_32bit_indexing() const;
+    std::vector<Tensor> split(std::vector<int64_t> indices, int64_t dim) const;
 
     Tensor _half() const;
     Tensor _float() const;

@@ -252,6 +252,16 @@ class TestTensorImpl(object):
         arr_t = torch.cat([arr1_t, arr2_t, arr3_t], 1)
         arr_gpu = kfunca.cat([arr1_gpu, arr2_gpu, arr3_gpu], 1)
         assert_allclose(arr_t, arr_gpu)
+    
+    def test_split(self):
+        arr = np.random.uniform(-10000, 10000, size=(5,25,23)).astype(np.float32)
+        arr_t = torch.from_numpy(arr)
+        arr_gpu = kfunca.from_numpy(arr, 0)
+        arr_t1, arr_t2, arr_t3 = arr_t.split([11,13,1], 1)
+        arr_gpu1, arr_gpu2, arr_gpu3 = arr_gpu.split([11,13,1], 1)
+        assert_allclose(arr_t1, arr_gpu1)
+        assert_allclose(arr_t2, arr_gpu2)
+        assert_allclose(arr_t3, arr_gpu3)
 
 
 if __name__ == '__main__':

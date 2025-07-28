@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "tensor.h"
+#include "tensor_shape.h"
 #include "exception.h"
 #include "data_ptr.h"
 #include "intrusive_ptr.h"
@@ -280,6 +281,10 @@ bool Tensor::can_use_32bit_indexing() const {
         return false;
     }
     return true;
+}
+
+std::vector<Tensor> Tensor::split(std::vector<int64_t> indices, int64_t dim) const {
+    return gpu::tensor_split(*this, indices, dim);
 }
 
 Tensor Tensor::_half() const {
