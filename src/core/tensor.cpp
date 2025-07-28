@@ -267,6 +267,21 @@ Tensor Tensor::view(std::vector<int64_t> sizes) const {
     return this->as_strided(sizes, {});
 }
 
+bool Tensor::can_use_32bit_indexing() const {
+    int64_t max_value = std::numeric_limits<int32_t>::max();
+    if (this->numel() > max_value) {
+        return false;
+    }
+    int64_t max_offset = 1;
+    for (int d = 0; d < dim_; ++d) {
+        max_offset += (shape_[d] - 1) * stride_[d] * element_size(dtype_);
+    }
+    if (max_offset > max_value) {
+        return false;
+    }
+    return true;
+}
+
 Tensor Tensor::_half() const {
     return gpu::convert(*this, ScalarType::Half);
 }
@@ -360,7 +375,8 @@ std::ostream &operator<<(std::ostream &os, const Tensor &t) {
     os << "\b], stride=[";
     for (int i = 0; i < t.dim(); ++i)
         os << t.stride(i) << ",";
-    os << "\b], dtype=" << t.dtype();
+    os << "\b], storage_offset=" << t.storage_offset();
+    os << ", dtype=" << t.dtype();
     os << ", numel=" << t.numel() << ", dim=" << t.dim();
     os << ", device=" << t.device() << ") {\n";
     print_tensor_(os, t);

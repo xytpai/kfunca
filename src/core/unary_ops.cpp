@@ -11,7 +11,7 @@ Tensor clone(const Tensor &self) {
 }
 
 Tensor &copy_(Tensor &self, const Tensor &other) {
-    auto iter = TensorIterator().add_output(self).add_input(other).resize_outputs(false).build_for_loops();
+    auto iter = TensorIterator().add_output(self).add_input(other).resize_outputs(false).check_mem_overlap(false).build_for_loops();
     copy_kernel(iter);
     return self;
 }

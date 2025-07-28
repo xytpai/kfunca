@@ -42,6 +42,7 @@ private:
     bool accumulate_ = false;
     bool final_output_ = true;
     bool is_reduction_ = false;
+    bool check_mem_overlap_ = true;
     int64_t reduce_dim_ = 0;
     ScalarType common_dtype_ = ScalarType::Undefined;
 
@@ -82,7 +83,12 @@ public:
     SplitUntil32Bit with_32bit_indexing() const;
 
     TensorIterator &resize_outputs(bool flag) {
-        resize_outputs_ = false;
+        resize_outputs_ = flag;
+        return *this;
+    }
+
+    TensorIterator &check_mem_overlap(bool flag) {
+        check_mem_overlap_ = flag;
         return *this;
     }
 

@@ -90,6 +90,7 @@ void TensorIterator::mark_outputs() {
 }
 
 void TensorIterator::check_mem_overlaps() {
+    if (!check_mem_overlap_) return;
     for (int i = 0; i < num_outputs_; ++i) {
         auto output = tensors_[i];
         if (!output->defined()) continue;

@@ -229,6 +229,7 @@ public:
     Tensor select(int64_t dim, int64_t index) const;
     Tensor narrow(int64_t dim, int64_t start, int64_t length) const;
     Tensor view(std::vector<int64_t> sizes) const;
+    bool can_use_32bit_indexing() const;
 
     Tensor _half() const;
     Tensor _float() const;
