@@ -1,4 +1,4 @@
-**kfunca** is a minimalist high-performance GPU AI kernel library.
+**kfunca** is a minimalist, high-performance GPU-based automatic differentiation framework.
 The operator scope is focused solely on multimodal transformers.
 Here are the supported features:
 
