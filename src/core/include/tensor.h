@@ -233,6 +233,7 @@ public:
     std::vector<Tensor> split(std::vector<int64_t> indices, int64_t dim) const;
 
     Tensor _half() const;
+    Tensor _bfloat16() const;
     Tensor _float() const;
 
     Tensor operator+(const Tensor &other) const;

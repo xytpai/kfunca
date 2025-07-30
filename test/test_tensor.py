@@ -151,6 +151,12 @@ class TestTensorImpl(object):
         arr_gpu *= arr_gpu
         arr_gpu_half *= arr_gpu_half
         assert_allclose(arr_gpu, arr_gpu_half.float())
+        arr = np.random.uniform(-10, 10, size=(2, 3))
+        arr_gpu = kfunca.from_numpy(arr, 0)
+        arr_gpu_bf = arr_gpu.bfloat16()
+        arr_gpu *= arr_gpu
+        arr_gpu_bf *= arr_gpu_bf
+        assert_allclose(arr_gpu, arr_gpu_bf.float(), atol=1e-1, rtol=1e-1)
     
     def test_permute(self):
         arr = np.random.uniform(-10, 10, size=(16, 8, 64, 11)) # 0,1,2,3

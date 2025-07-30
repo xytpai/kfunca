@@ -219,6 +219,24 @@ struct KeyTraits<dtype::Half> {
     }
 };
 
+template <>
+struct KeyTraits<dtype::BFloat16> {
+    using Type = uint16_t;
+    HOST_DEVICE static inline Type convert(dtype::BFloat16 v) {
+        Type x = *((Type *)&v);
+        Type mask = -((x >> 15)) | 0x8000;
+        return (x ^ mask);
+    }
+    HOST_DEVICE static inline dtype::BFloat16 deconvert(Type v) {
+        Type mask = ((v >> 15) - 1) | 0x8000;
+        Type v_de = v ^ mask;
+        return reinterpret_cast<dtype::BFloat16 &>(v_de);
+    }
+    HOST_DEVICE static inline int endbit() {
+        return sizeof(Type) << 3;
+    }
+};
+
 template <int N, int CURRENT_VAL = N, int COUNT = 0>
 struct Log2 {
     enum { VALUE = Log2<N, (CURRENT_VAL >> 1), COUNT + 1>::VALUE };

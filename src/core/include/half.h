@@ -5,19 +5,22 @@
 #include <iosfwd>
 #include <limits>
 #include <ostream>
+#include <cmath>
 #include <bit>
 
 #include "launcher.h"
 
-HOST_DEVICE inline float fp32_from_bits(uint32_t w) {
+namespace dtype {
+
+inline float fp32_from_bits(uint32_t w) {
     return std::bit_cast<float>(w);
 }
 
-HOST_DEVICE inline uint32_t fp32_to_bits(float f) {
+inline uint32_t fp32_to_bits(float f) {
     return std::bit_cast<uint32_t>(f);
 }
 
-HOST_DEVICE inline float fp16_ieee_to_fp32_value(uint16_t h) {
+inline float fp16_ieee_to_fp32_value(uint16_t h) {
     /*
      * Extend the half-precision floating-point number to 32 bits and shift to the
      * upper part of the 32-bit word:
@@ -181,28 +184,111 @@ inline uint16_t fp16_ieee_from_fp32_value(float f) {
         (sign >> 16) | (shl1_w > UINT32_C(0xFF000000) ? UINT16_C(0x7E00) : nonsign));
 }
 
-namespace dtype {
+inline float f32_from_bits(uint16_t src) {
+    float res = 0;
+    uint32_t tmp = src;
+    tmp <<= 16;
+    std::memcpy(&res, &tmp, sizeof(tmp));
+    return res;
+}
+
+inline uint16_t round_to_nearest_even(float src) {
+    if (std::isnan(src)) {
+        return UINT16_C(0x7FC0);
+    } else {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+        union {
+            uint32_t U32; // NOLINT(facebook-hte-BadMemberName)
+            float F32;    // NOLINT(facebook-hte-BadMemberName)
+        };
+        F32 = src;
+        uint32_t rounding_bias = ((U32 >> 16) & 1) + UINT32_C(0x7FFF);
+        return static_cast<uint16_t>((U32 + rounding_bias) >> 16);
+    }
+}
+
+class BFloat16;
 
 struct alignas(2) Half {
     unsigned short x;
     Half() = default;
 #if defined(__CUDACC__)
-    inline DEVICE operator float() const {
-        return half_to_float(x);
-    }
-
-    inline DEVICE Half(float f) {
-        x = float_to_half(f);
-    }
+    DEVICE inline operator float() const;
+    DEVICE inline Half(float f);
+    DEVICE inline operator BFloat16() const;
 #else
-    inline HOST_DEVICE operator float() const {
-        return fp16_ieee_to_fp32_value(x);
-    }
-
-    inline HOST_DEVICE Half(float f) {
-        x = fp16_ieee_from_fp32_value(f);
-    }
+    inline operator float() const;
+    inline Half(float f);
+    inline operator BFloat16() const;
 #endif
 };
+
+struct alignas(2) BFloat16 {
+    unsigned short x;
+    BFloat16() = default;
+#if defined(__CUDACC__)
+    DEVICE inline operator float() const;
+    DEVICE inline BFloat16(float f);
+    DEVICE inline operator Half() const;
+#else
+    inline operator float() const;
+    inline BFloat16(float f);
+    inline operator Half() const;
+#endif
+};
+
+#if defined(__CUDACC__)
+
+DEVICE inline Half::operator float() const {
+    return half_to_float(x);
+}
+
+DEVICE inline Half::Half(float f) {
+    x = float_to_half(f);
+}
+
+DEVICE inline Half::operator BFloat16() const {
+    return BFloat16(half_to_float(x));
+}
+
+DEVICE inline BFloat16::operator float() const {
+    return bfloat16_to_float(x);
+}
+
+DEVICE inline BFloat16::BFloat16(float f) {
+    x = float_to_bfloat16(f);
+}
+
+DEVICE inline BFloat16::operator Half() const {
+    return Half(bfloat16_to_float(x));
+}
+
+#else
+
+inline Half::operator float() const {
+    return fp16_ieee_to_fp32_value(x);
+}
+
+inline Half::Half(float f) {
+    x = fp16_ieee_from_fp32_value(f);
+}
+
+inline Half::operator BFloat16() const {
+    return BFloat16(fp16_ieee_to_fp32_value(x));
+}
+
+inline BFloat16::operator float() const {
+    return f32_from_bits(x);
+}
+
+inline BFloat16::BFloat16(float f) {
+    x = round_to_nearest_even(f);
+}
+
+inline BFloat16::operator Half() const {
+    return Half(f32_from_bits(x));
+}
+
+#endif
 
 } // namespace dtype
