@@ -37,8 +37,7 @@ Here are the supported features:
 
 - [x] fp32/64
 - [x] float16
-- [ ] bfloat16
-- [ ] float8
+- [x] bfloat16
 
 ---
 

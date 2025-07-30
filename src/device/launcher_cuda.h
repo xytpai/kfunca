@@ -4,6 +4,7 @@
 #include <device_launch_parameters.h>
 #include <mma.h>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 
 #include <iostream>
 #include <string>
@@ -521,6 +522,16 @@ inline DEVICE uint16_t float_to_half(float f) {
                  : "=h"(tmp.u16[0])
                  : "f"(f));
     return tmp.u16[0];
+}
+
+inline DEVICE float bfloat16_to_float(uint16_t h) {
+    auto h_ = *reinterpret_cast<__nv_bfloat16 *>(&h);
+    return __bfloat162float(h_);
+}
+
+inline DEVICE uint16_t float_to_bfloat16(float f) {
+    auto f_ = __float2bfloat16(f);
+    return *reinterpret_cast<uint16_t *>(&f_);
 }
 
 #include "cutlass/gemm/device/gemm.h"

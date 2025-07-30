@@ -291,6 +291,10 @@ Tensor Tensor::_half() const {
     return gpu::convert(*this, ScalarType::Half);
 }
 
+Tensor Tensor::_bfloat16() const {
+    return gpu::convert(*this, ScalarType::BFloat16);
+}
+
 Tensor Tensor::_float() const {
     return gpu::convert(*this, ScalarType::Float);
 }

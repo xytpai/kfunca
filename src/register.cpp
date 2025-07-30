@@ -68,6 +68,7 @@ PYBIND11_MODULE(kfunca, m) {
         .value("int", ScalarType::Int)
         .value("long", ScalarType::Long)
         .value("half", ScalarType::Half)
+        .value("bfloat16", ScalarType::BFloat16)
         .value("float", ScalarType::Float)
         .value("double", ScalarType::Double)
         .value("bool", ScalarType::Bool)
@@ -207,5 +208,6 @@ PYBIND11_MODULE(kfunca, m) {
         .def("mean_var", &Tensor::mean_var)
         .def("norm_stat", &Tensor::norm_stat)
         .def("half", &Tensor::_half)
+        .def("bfloat16", &Tensor::_bfloat16)
         .def("float", &Tensor::_float);
 }
