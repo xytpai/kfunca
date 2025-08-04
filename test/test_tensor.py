@@ -268,6 +268,19 @@ class TestTensorImpl(object):
         assert_allclose(arr_t1, arr_gpu1)
         assert_allclose(arr_t2, arr_gpu2)
         assert_allclose(arr_t3, arr_gpu3)
+    
+    def test_index_put(self):
+        arr = np.random.uniform(-10000, 10000, size=(13, 15)).astype(np.float32)
+        arr_gpu = kfunca.from_numpy(arr, 0)
+        indices = [kfunca.from_numpy(np.array([0, 5, 1, 2]).astype('q'), 0), 
+                   kfunca.from_numpy(np.array([0, 11, 1, 0]).astype('q'), 0)]
+        values = kfunca.from_numpy(np.random.uniform(-10000, 10000, size=(4)).astype(np.float32), 0)
+        arr_gpu.index_put_(indices, values)
+        arr_gpu_pt = torch.from_numpy(arr)
+        indices_t = [torch.from_numpy(indices[0].numpy()), torch.from_numpy(indices[1].numpy())]
+        values_pt = torch.from_numpy(values.numpy())
+        arr_gpu_pt.index_put_(indices_t, values_pt)
+        assert_allclose(arr_gpu, arr_gpu_pt)
 
 
 if __name__ == '__main__':
