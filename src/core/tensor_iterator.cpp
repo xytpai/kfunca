@@ -140,7 +140,8 @@ void TensorIterator::mark_resize_outputs() {
                 continue;
             }
             // for reduction, output size does not match shape_, as output is reduced size, and shape_ is size of the input
-            CHECK_FAIL(is_reduction_, "output with shape doesn't match the broadcast shape ");
+            CHECK_FAIL(is_reduction_, "output with shape ", output->shape(), " doesn't match the broadcast shape ",
+                       this->shape_vec());
         }
     }
 }

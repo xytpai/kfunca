@@ -129,6 +129,11 @@ public:
         return shape_;
     }
 
+    std::vector<int64_t> shape_vec() const {
+        std::vector<int64_t> vec(shape_, shape_ + ndim_);
+        return vec;
+    }
+
     int64_t stride_bytes(int arg, int dim) const {
         return stride_bytes_[arg][dim];
     }

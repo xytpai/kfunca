@@ -15,6 +15,7 @@
 #include "reduce_ops.h"
 #include "sort_ops.h"
 #include "norm_ops.h"
+#include "index_ops.h"
 #include "accumulate_type.h"
 
 using namespace utils::memory;
@@ -149,6 +150,11 @@ Tensor Tensor::as_strided(std::vector<int64_t> sizes,
     out.numel_ = numel;
     out.is_contiguous_ = false;
     out.storage_offset_ = storage_offset;
+    // TODO: remove it
+    for (int i = ndim; i < MAX_TENSOR_DIMS; i++) {
+        out.shape_[i] = 0;
+        out.stride_[i] = 0;
+    }
     return out;
 }
 
@@ -451,4 +457,8 @@ std::tuple<Tensor, Tensor> Tensor::mean_var(int64_t reduce_dim, bool take_sqrt) 
 
 std::tuple<Tensor, Tensor> Tensor::norm_stat(int64_t dim) const {
     return gpu::norm_stat(*this, dim);
+}
+
+Tensor &Tensor::index_put_(const std::vector<Tensor> &indices, const Tensor &values) {
+    return gpu::index_put_(*this, indices, values);
 }

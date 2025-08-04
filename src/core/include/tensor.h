@@ -30,6 +30,17 @@ Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype);
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 std::ostream &operator<<(std::ostream &os, const Tensor &t);
 
+template <typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
+    os << "[";
+    for (auto i = 0; i < vec.size(); ++i) {
+        os << vec[i];
+        if (i + 1 != vec.size()) os << ", ";
+    }
+    os << "]";
+    return os;
+}
+
 template <typename T, int vec_size>
 struct d_array {
     T val[vec_size] = {0};
@@ -251,4 +262,5 @@ public:
     std::tuple<Tensor, Tensor> topk(int64_t k, int64_t dim, bool largest) const;
     std::tuple<Tensor, Tensor> mean_var(int64_t reduce_dim, bool take_sqrt) const;
     std::tuple<Tensor, Tensor> norm_stat(int64_t dim) const;
+    Tensor &index_put_(const std::vector<Tensor> &indices, const Tensor &values);
 };

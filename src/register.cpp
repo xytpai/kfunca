@@ -207,6 +207,7 @@ PYBIND11_MODULE(kfunca, m) {
         .def("mean", &Tensor::mean)
         .def("mean_var", &Tensor::mean_var)
         .def("norm_stat", &Tensor::norm_stat)
+        .def("index_put_", &Tensor::index_put_)
         .def("half", &Tensor::_half)
         .def("bfloat16", &Tensor::_bfloat16)
         .def("float", &Tensor::_float);
