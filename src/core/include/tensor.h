@@ -114,6 +114,12 @@ public:
     }
 };
 
+class Function : public intrusive_ptr_target {
+public:
+    virtual std::vector<Tensor> forward() = 0;
+    virtual void backward(std::vector<Tensor> grad_output) = 0;
+};
+
 class Tensor {
     int dim_;
     dim_t shape_;
@@ -121,6 +127,8 @@ class Tensor {
     ScalarType dtype_;
     int64_t numel_;
     intrusive_ptr<TensorStorage> storage_;
+    intrusive_ptr<TensorStorage> grad_storage_;
+    intrusive_ptr<Function> grad_fn_;
     int64_t storage_offset_ = 0;
     bool is_contiguous_ = true;
 

@@ -3,20 +3,33 @@
 
 namespace gpu {
 
+
 Tensor &add_out(Tensor &out, const Tensor &left, const Tensor &right) {
     auto iter = TensorIterator().add_output(out).add_input(left).add_input(right).build_for_loops();
     add_kernel(iter);
     return out;
 }
 
+Tensor &add_(Tensor &self, const Tensor &other) {
+    return add_out(self, self, other);
+}
+
+class AddFunction : public Function {
+public:
+    Tensor forward(std::vector<Tensor> inputs) override {
+        CHECK_FAIL(inputs.size() == 2, "AddFunction requires exactly two inputs.");
+        return add(inputs[0], inputs[1]);
+    }
+private:
+    Tensor left_;
+    Tensor right_;
+    
+}
+
 Tensor add(const Tensor &left, const Tensor &right) {
     Tensor out;
     out = add_out(out, left, right);
     return out;
-}
-
-Tensor &add_(Tensor &self, const Tensor &other) {
-    return add_out(self, self, other);
 }
 
 Tensor &sub_out(Tensor &out, const Tensor &left, const Tensor &right) {
