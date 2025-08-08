@@ -2,4 +2,5 @@ cmake
 ninja
 pybind11
 pytest
+numpy
 torch
