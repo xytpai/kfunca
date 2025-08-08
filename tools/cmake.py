@@ -33,9 +33,10 @@ def which(thefile: str) -> str | None:
 class CMake:
     "Manages cmake."
 
-    def __init__(self, build_dir: str = BUILD_DIR) -> None:
+    def __init__(self, parallel_build=None, build_dir=BUILD_DIR) -> None:
         self._cmake_command = CMake._get_cmake_command()
         self.build_dir = build_dir
+        self.parallel_build = parallel_build
 
     @property
     def _cmake_cache_file(self) -> str:
@@ -100,4 +101,10 @@ class CMake:
         self.run(args, os.environ)
     
     def build(self):
-        self.run(['--build', '.'], os.environ)
+        if not self.parallel_build:
+            self.run(['--build', '.'], os.environ)
+        elif isinstance(self.parallel_build, int):
+            nworkers = str(self.parallel_build)
+            self.run(['--build', '.', '-j', nworkers], os.environ)
+        else:
+            self.run(['--build', '.', '--parallel'], os.environ)
