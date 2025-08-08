@@ -215,11 +215,11 @@ struct alignas(2) Half {
 #if defined(__CUDACC__)
     DEVICE inline operator float() const;
     DEVICE inline Half(float f);
-    DEVICE inline operator BFloat16() const;
+    DEVICE inline Half(BFloat16 bf);
 #else
     inline operator float() const;
     inline Half(float f);
-    inline operator BFloat16() const;
+    inline Half(BFloat16 bf);
 #endif
 };
 
@@ -229,11 +229,11 @@ struct alignas(2) BFloat16 {
 #if defined(__CUDACC__)
     DEVICE inline operator float() const;
     DEVICE inline BFloat16(float f);
-    DEVICE inline operator Half() const;
+    DEVICE inline BFloat16(Half h);
 #else
     inline operator float() const;
     inline BFloat16(float f);
-    inline operator Half() const;
+    inline BFloat16(Half h);
 #endif
 };
 
@@ -247,8 +247,8 @@ DEVICE inline Half::Half(float f) {
     x = float_to_half(f);
 }
 
-DEVICE inline Half::operator BFloat16() const {
-    return BFloat16(half_to_float(x));
+DEVICE inline Half::Half(BFloat16 bf) {
+    x = float_to_half(bfloat16_to_float(bf.x));
 }
 
 DEVICE inline BFloat16::operator float() const {
@@ -259,8 +259,8 @@ DEVICE inline BFloat16::BFloat16(float f) {
     x = float_to_bfloat16(f);
 }
 
-DEVICE inline BFloat16::operator Half() const {
-    return Half(bfloat16_to_float(x));
+DEVICE inline BFloat16::BFloat16(Half h) {
+    x = float_to_bfloat16(half_to_float(h.x));
 }
 
 #else
@@ -273,8 +273,8 @@ inline Half::Half(float f) {
     x = fp16_ieee_from_fp32_value(f);
 }
 
-inline Half::operator BFloat16() const {
-    return BFloat16(fp16_ieee_to_fp32_value(x));
+inline Half::Half(BFloat16 bf) {
+    x = fp16_ieee_from_fp32_value(f32_from_bits(bf.x));
 }
 
 inline BFloat16::operator float() const {
@@ -285,8 +285,8 @@ inline BFloat16::BFloat16(float f) {
     x = round_to_nearest_even(f);
 }
 
-inline BFloat16::operator Half() const {
-    return Half(f32_from_bits(x));
+inline BFloat16::BFloat16(Half h) {
+    x = round_to_nearest_even(fp16_ieee_to_fp32_value(h.x));
 }
 
 #endif

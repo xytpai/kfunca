@@ -9,6 +9,7 @@ from tools.cmake import CMake
 package_name = 'kfunca'
 version = '0.1.1'
 base_dir = os.path.dirname(os.path.abspath(__file__))
+default_parallel_build = 4  # Default number of parallel jobs for building
 
 
 class BuildExt(build_ext):
@@ -19,7 +20,7 @@ class BuildExt(build_ext):
         super().run()
 
     def build_cmake(self, ext):
-        cmake = CMake()
+        cmake = CMake(default_parallel_build)
         extdir = pathlib.Path(self.get_ext_fullpath(ext.name)).parent.absolute()
         cmake.generate(rerun=True, output_dir=extdir)
         cmake.build()
