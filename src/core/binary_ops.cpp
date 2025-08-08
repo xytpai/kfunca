@@ -9,14 +9,40 @@ Tensor &add_out(Tensor &out, const Tensor &left, const Tensor &right) {
     return out;
 }
 
+Tensor &add_(Tensor &self, const Tensor &other) {
+    return add_out(self, self, other);
+}
+
+class AddGradFunction : public GradFunction {
+public:
+    std::vector<Tensor> backward(Tensor grad_output) override {
+        std::vector<Tensor> grad_inputs;
+        grad_inputs.resize(2);
+        if (inputs[0].requires_grad()) {
+            grad_inputs[0] = grad_output;
+            std::cout << "call AddGradFunction to left\n";
+        }
+        if (inputs[1].requires_grad()) {
+            grad_inputs[1] = grad_output;
+            std::cout << "call AddGradFunction to right\n";
+        }
+        return grad_inputs;
+    }
+    AddGradFunction(const Tensor &left, const Tensor &right) {
+        inputs.reserve(2);
+        inputs[0] = left;
+        inputs[1] = right;
+    }
+};
+
 Tensor add(const Tensor &left, const Tensor &right) {
     Tensor out;
     out = add_out(out, left, right);
+    out.set_requires_grad((left.requires_grad() || right.requires_grad()));
+    if (out.requires_grad()) {
+        out.set_grad_fn(new AddGradFunction(left, right));
+    }
     return out;
-}
-
-Tensor &add_(Tensor &self, const Tensor &other) {
-    return add_out(self, self, other);
 }
 
 Tensor &sub_out(Tensor &out, const Tensor &left, const Tensor &right) {

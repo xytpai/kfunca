@@ -103,6 +103,12 @@ public:
     }
 };
 
+class GradFunction : public intrusive_ptr_target {
+public:
+    virtual std::vector<Tensor> backward(Tensor grad_output) = 0;
+    std::vector<Tensor> inputs;
+};
+
 class Tensor {
     int dim_;
     dim_t shape_;
@@ -110,8 +116,11 @@ class Tensor {
     ScalarType dtype_;
     int64_t numel_;
     intrusive_ptr<TensorStorage> storage_;
+    intrusive_ptr<TensorStorage> grad_storage_;
+    intrusive_ptr<GradFunction> grad_fn_;
     int64_t storage_offset_ = 0;
     bool is_contiguous_ = true;
+    bool requires_grad_ = false;
 
     void new_storage_(int device);
 
@@ -128,13 +137,17 @@ class Tensor {
 
 public:
     Tensor() :
-        storage_() {
+        storage_(), grad_storage_(), grad_fn_() {
     }
     Tensor(const Tensor &other) :
         dim_(other.dim_), shape_(other.shape_), stride_(other.stride_),
         dtype_(other.dtype_), numel_(other.numel_),
-        storage_(other.storage_), storage_offset_(other.storage_offset_),
-        is_contiguous_(other.is_contiguous_) {
+        storage_(other.storage_),
+        grad_storage_(other.grad_storage_),
+        grad_fn_(other.grad_fn_),
+        storage_offset_(other.storage_offset_),
+        is_contiguous_(other.is_contiguous_),
+        requires_grad_(other.requires_grad_) {
     }
     Tensor &operator=(const Tensor &other) {
         dim_ = other.dim_;
@@ -143,8 +156,11 @@ public:
         dtype_ = other.dtype_;
         numel_ = other.numel_;
         storage_ = other.storage_;
+        grad_storage_ = other.grad_storage_;
+        grad_fn_ = other.grad_fn_;
         storage_offset_ = other.storage_offset_;
         is_contiguous_ = other.is_contiguous_;
+        requires_grad_ = other.requires_grad_;
         return *this;
     }
     Tensor(Tensor &&other) = default;
@@ -199,8 +215,17 @@ public:
     intrusive_ptr<TensorStorage> storage() const {
         return storage_;
     }
+    intrusive_ptr<TensorStorage> grad_storage() const {
+        return grad_storage_;
+    }
+    intrusive_ptr<GradFunction> grad_fn() const {
+        return grad_fn_;
+    }
     bool defined() const {
         return storage_.get() != nullptr;
+    }
+    bool has_grad_fn() const {
+        return grad_fn_.get() != nullptr;
     }
     int device() const {
         return storage_.get()->device();
@@ -216,7 +241,15 @@ public:
     bool is_contiguous() const {
         return is_contiguous_;
     }
+    bool requires_grad() const {
+        return requires_grad_;
+    }
+    void set_requires_grad(bool flag) {
+        requires_grad_ = flag;
+    }
 
+    void set_grad_fn(GradFunction *fn);
+    void backward(Tensor grad_output);
     void copy_from_cpu_ptr(void *ptr);
     void copy_to_cpu_ptr(void *ptr) const;
     any_t item(const std::vector<int64_t> &indices) const;
