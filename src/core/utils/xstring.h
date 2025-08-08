@@ -4,6 +4,17 @@
 #include <string>
 #include <sstream>
 
+template <typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &vec) {
+    os << "[";
+    for (auto i = 0; i < vec.size(); ++i) {
+        os << vec[i];
+        if (i + 1 != vec.size()) os << ", ";
+    }
+    os << "]";
+    return os;
+}
+
 namespace utils {
 
 inline std::ostream &_str(std::ostream &ss) {

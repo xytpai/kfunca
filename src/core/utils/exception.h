@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <cstdint>
 
 #include "xstring.h"
 
