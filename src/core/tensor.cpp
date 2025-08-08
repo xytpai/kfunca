@@ -1,6 +1,8 @@
 #include <iostream>
 #include <iomanip>
 #include <vector>
+#include <tuple>
+#include <queue>
 
 #include "tensor.h"
 #include "tensor_shape.h"
@@ -76,6 +78,30 @@ Tensor::Tensor(int64_t *shape, int ndim, ScalarType dtype, bool inverse) {
             is = dim_ - 1 - i;
         numel_ *= shape[is];
         shape_[i] = shape[is];
+    }
+}
+
+void Tensor::set_grad_fn(GradFunction *fn) {
+    grad_fn_.unsafe_set_ptr(fn);
+}
+
+void Tensor::backward(Tensor grad_output) {
+    std::queue<std::tuple<Tensor *, Tensor>> q;
+    q.push({this, grad_output});
+    while (!q.empty()) {
+        auto [t, go] = q.front();
+        q.pop();
+        if (t->has_grad_fn()) {
+            auto grad_fn = t->grad_fn_.get();
+            auto gis = grad_fn->backward(go);
+            auto &inputs = grad_fn->inputs;
+            for (int i = 0; i < inputs.size(); ++i) {
+                if (inputs[i].requires_grad()) {
+                    // update grad input
+                    q.push({&inputs[i], gis[i]});
+                }
+            }
+        }
     }
 }
 
