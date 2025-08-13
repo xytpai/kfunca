@@ -29,9 +29,8 @@ public:
         return grad_inputs;
     }
     AddGradFunction(const Tensor &left, const Tensor &right) {
-        inputs.reserve(2);
-        inputs[0] = left;
-        inputs[1] = right;
+        inputs.push_back(left);
+        inputs.push_back(right);
     }
 };
 
