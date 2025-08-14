@@ -117,6 +117,7 @@ PYBIND11_MODULE(kfunca, m) {
             return reinterpret_cast<uintptr_t>(self.data_ptr());
         })
         .def("storage_ref_count", &Tensor::storage_ref_count)
+        .def("impl_ref_count", &Tensor::impl_ref_count)
         .def("contiguous", &Tensor::contiguous)
         .def("permute", [](Tensor &self, py::args args) {
             CHECK_FAIL(args.size() == self.dim());

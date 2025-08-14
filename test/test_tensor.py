@@ -70,17 +70,18 @@ class TestTensorImpl(object):
     def test_data_ptr(self):
         import copy
         arr_ = np.random.uniform(-10, 10, size=(3,4)).astype(np.float32)
-        arr_x = kfunca.from_numpy(arr_, 0)
-        arr_x_ref = kfunca.from_numpy(arr_, 0)
-        arr_x_ref = arr_x
-        arr_x_deep = copy.deepcopy(arr_x)
+        arr_x = kfunca.from_numpy(arr_, 0) # x-1
+        arr_x_ref = kfunca.from_numpy(arr_, 0) # y-1
+        arr_x_ref = arr_x # x-1, y-0
+        arr_x_deep = copy.deepcopy(arr_x) # x-2
         assert arr_x.data_ptr() == arr_x_ref.data_ptr() == arr_x_deep.data_ptr()
-        assert arr_x.storage_ref_count() == arr_x_ref.storage_ref_count() == arr_x_deep.storage_ref_count() == 2
+        assert arr_x.storage_ref_count() == arr_x_ref.storage_ref_count() == arr_x_deep.storage_ref_count() == 1
+        assert arr_x.impl_ref_count() == arr_x_ref.impl_ref_count() == arr_x_deep.impl_ref_count() == 2
         del arr_x
-        assert arr_x_deep.storage_ref_count() == 2
-        assert arr_x_ref.storage_ref_count() == 2
+        assert arr_x_deep.impl_ref_count() == 2
+        assert arr_x_ref.impl_ref_count() == 2
         del arr_x_ref
-        assert arr_x_deep.storage_ref_count() == 1
+        assert arr_x_deep.impl_ref_count() == 1
 
     def test_broadcast_basic_binary(self):
         shapes = [

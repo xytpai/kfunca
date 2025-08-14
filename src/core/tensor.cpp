@@ -1,13 +1,7 @@
-#include <iostream>
 #include <iomanip>
-#include <vector>
 
 #include "tensor.h"
 #include "tensor_shape.h"
-#include "exception.h"
-#include "data_ptr.h"
-#include "intrusive_ptr.h"
-#include "scalar_type.h"
 #include "memory_engine.h"
 #include "binary_ops.h"
 #include "unary_ops.h"
@@ -18,65 +12,58 @@
 #include "index_ops.h"
 #include "accumulate_type.h"
 
-using namespace utils::memory;
-
-void Tensor::new_storage_(int device) {
-    auto [min_offset, max_offset] = compute_offset_range<dim_t>(shape_, stride_, dim_);
-    size_t offset_range = max_offset - min_offset + 1;
-    size_t bytes = offset_range * element_size(dtype_);
-    auto ptr = new TensorStorage(bytes, device);
-    storage_.unsafe_set_ptr(ptr);
+Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device) {
+    Tensor output;
+    auto impl = new TensorImpl(shape, dtype);
+    impl->new_storage_(device);
+    output.impl_.unsafe_set_ptr(impl);
+    return output;
 }
 
-std::ostream &operator<<(std::ostream &os, const dim_t &d) {
-    os << "dim_t:";
-    for (int i = 0; i < MAX_TENSOR_DIMS; i++)
-        os << d[i] << ", ";
-    os << "\n";
-    return os;
+Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse) {
+    Tensor output;
+    auto impl = new TensorImpl(shape, ndim, dtype, inverse);
+    impl->new_storage_(device);
+    output.impl_.unsafe_set_ptr(impl);
+    return output;
 }
 
-Tensor::Tensor(std::vector<int64_t> &shape, ScalarType dtype) {
-    CHECK_FAIL(shape.size() <= MAX_TENSOR_DIMS);
-    dtype_ = dtype;
-    dim_ = shape.size();
-    numel_ = 1;
-    for (int i = dim_ - 1; i >= 0; i--) {
-        stride_[i] = numel_;
-        numel_ *= shape[i];
-        shape_[i] = shape[i];
+Tensor empty_like(const Tensor &self) {
+    auto sizes = self.sizes();
+    Tensor output;
+    auto impl = new TensorImpl(sizes, self.dtype());
+    impl->new_storage_(self.device());
+    output.impl_.unsafe_set_ptr(impl);
+    return output;
+}
+
+Tensor empty_strided(std::vector<int64_t> shape, std::vector<int64_t> strides, ScalarType dtype, int device) {
+    Tensor output;
+    auto impl = new TensorImpl(shape, strides, dtype);
+    impl->new_storage_(device);
+    output.impl_.unsafe_set_ptr(impl);
+    return output;
+}
+
+Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype) {
+    auto sizes = self.sizes();
+    if (dim >= 0) {
+        sizes[dim] = 1;
     }
+    Tensor output;
+    auto impl = new TensorImpl(sizes, dtype);
+    impl->new_storage_(self.device());
+    output.impl_.unsafe_set_ptr(impl);
+    return output;
 }
 
-Tensor::Tensor(std::vector<int64_t> &shape, std::vector<int64_t> &strides, ScalarType dtype) {
-    CHECK_FAIL(shape.size() <= MAX_TENSOR_DIMS);
-    CHECK_FAIL(strides.size() <= MAX_TENSOR_DIMS);
-    dtype_ = dtype;
-    dim_ = shape.size();
-    CHECK_FAIL(dim_ == strides.size());
-    numel_ = 1;
-    for (int i = dim_ - 1; i >= 0; i--) {
-        stride_[i] = strides[i];
-        numel_ *= shape[i];
-        shape_[i] = shape[i];
-    }
-}
-
-Tensor::Tensor(int64_t *shape, int ndim, ScalarType dtype, bool inverse) {
-    CHECK_FAIL(ndim <= MAX_TENSOR_DIMS);
-    dtype_ = dtype;
-    dim_ = ndim;
-    numel_ = 1;
-    int is;
-    for (int i = dim_ - 1; i >= 0; i--) {
-        stride_[i] = numel_;
-        if (!inverse)
-            is = i;
-        else
-            is = dim_ - 1 - i;
-        numel_ *= shape[is];
-        shape_[i] = shape[is];
-    }
+Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device) {
+    Tensor output;
+    auto impl = new TensorImpl(shape, dtype);
+    impl->new_storage_(device);
+    output.impl_.unsafe_set_ptr(impl);
+    dmemset_zeros(output.data_ptr(), output.storage_bytes());
+    return output;
 }
 
 void Tensor::copy_from_cpu_ptr(void *ptr) {
@@ -104,62 +91,31 @@ Tensor &Tensor::fill_(const any_t &value) {
 }
 
 int64_t Tensor::offset(const std::vector<int64_t> &indices) const {
-    CHECK_FAIL(indices.size() == dim_);
+    CHECK_FAIL(indices.size() == dim());
     int64_t flat_index = 0;
     for (size_t i = 0; i < indices.size(); ++i) {
-        flat_index += indices[i] * stride_[i];
+        flat_index += indices[i] * stride(i);
     }
     return flat_index;
 }
 
 Tensor Tensor::contiguous() const {
-    if (is_contiguous_)
+    if (is_contiguous())
         return *this;
     return gpu::clone(*this);
 }
 
 Tensor Tensor::as_strided(std::vector<int64_t> sizes,
                           std::vector<int64_t> strides, int64_t storage_offset) const {
-    auto ndim = sizes.size();
-    bool has_strides = strides.size() > 0;
-    if (has_strides) {
-        CHECK_FAIL(ndim == strides.size());
-    } else {
-        strides.reserve(ndim);
-        int64_t cumprod = 1;
-        for (int i = ndim - 1; i >= 0; i--) {
-            strides[i] = cumprod;
-            cumprod *= sizes[i];
-        }
-    }
-    // in-bounds check
-    auto [min_offset, max_offset] = compute_offset_range(sizes, strides, ndim);
-    min_offset += storage_offset;
-    max_offset += storage_offset;
-    CHECK_FAIL(min_offset >= 0);
-    CHECK_FAIL(max_offset * element_size(dtype_) < this->storage_bytes());
-    // create tensor view
-    Tensor out(*this);
-    out.dim_ = ndim;
-    int64_t numel = 1;
-    for (int i = 0; i < ndim; i++) {
-        out.shape_[i] = sizes[i];
-        numel *= sizes[i];
-        out.stride_[i] = strides[i];
-    }
-    out.numel_ = numel;
-    out.is_contiguous_ = false;
-    out.storage_offset_ = storage_offset;
-    // TODO: remove it
-    for (int i = ndim; i < MAX_TENSOR_DIMS; i++) {
-        out.shape_[i] = 0;
-        out.stride_[i] = 0;
-    }
-    return out;
+    Tensor output;
+    auto impl = new TensorImpl(*(impl_.get()));
+    impl->as_strided_(sizes, strides, storage_offset);
+    output.impl_.unsafe_set_ptr(impl);
+    return output;
 }
 
 Tensor Tensor::permute(const std::vector<int64_t> dims) const {
-    const auto ndim = dim_;
+    const auto ndim = dim();
     CHECK_FAIL(ndim == dims.size());
     auto new_sizes = std::vector<int64_t>(ndim);
     auto new_strides = std::vector<int64_t>(ndim);
@@ -168,8 +124,8 @@ Tensor Tensor::permute(const std::vector<int64_t> dims) const {
         int d = maybe_wrap_dim(dims[i], ndim);
         CHECK_FAIL(!seen_dims[d], "permute(): duplicate dims are not allowed.");
         seen_dims[d] = true;
-        new_sizes[i] = this->shape_[d];
-        new_strides[i] = this->stride_[d];
+        new_sizes[i] = this->shape(d);
+        new_strides[i] = this->stride(d);
     }
     return as_strided(new_sizes, new_strides);
 }
@@ -252,7 +208,7 @@ Tensor Tensor::narrow(int64_t dim, int64_t start, int64_t length) const {
 }
 
 Tensor Tensor::view(std::vector<int64_t> sizes) const {
-    CHECK_FAIL(this->is_contiguous_);
+    CHECK_FAIL(this->is_contiguous());
     int64_t cumprod = 1;
     bool has_neg_dim = false;
     int64_t neg_dim = -1;
@@ -267,10 +223,10 @@ Tensor Tensor::view(std::vector<int64_t> sizes) const {
         }
     }
     if (has_neg_dim) {
-        sizes[neg_dim] = this->numel_ / cumprod;
+        sizes[neg_dim] = this->numel() / cumprod;
         cumprod *= sizes[neg_dim];
     }
-    CHECK_FAIL(cumprod == this->numel_);
+    CHECK_FAIL(cumprod == this->numel());
     return this->as_strided(sizes, {});
 }
 
@@ -280,8 +236,8 @@ bool Tensor::can_use_32bit_indexing() const {
         return false;
     }
     int64_t max_offset = 1;
-    for (int d = 0; d < dim_; ++d) {
-        max_offset += (shape_[d] - 1) * stride_[d] * element_size(dtype_);
+    for (int d = 0; d < this->dim(); ++d) {
+        max_offset += (shape(d) - 1) * stride(d) * element_size(dtype());
     }
     if (max_offset > max_value) {
         return false;
@@ -303,48 +259,6 @@ Tensor Tensor::_bfloat16() const {
 
 Tensor Tensor::_float() const {
     return gpu::convert(*this, ScalarType::Float);
-}
-
-Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device) {
-    Tensor output(shape, dtype);
-    output.new_storage_(device);
-    return output;
-}
-
-Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse) {
-    Tensor output(shape, ndim, dtype, inverse);
-    output.new_storage_(device);
-    return output;
-}
-
-Tensor empty_like(const Tensor &self) {
-    auto sizes = self.sizes();
-    Tensor output(sizes, self.dtype());
-    output.new_storage_(self.device());
-    return output;
-}
-
-Tensor empty_strided(std::vector<int64_t> shape, std::vector<int64_t> strides, ScalarType dtype, int device) {
-    Tensor output(shape, strides, dtype);
-    output.new_storage_(device);
-    return output;
-}
-
-Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype) {
-    auto sizes = self.sizes();
-    if (dim >= 0) {
-        sizes[dim] = 1;
-    }
-    Tensor output(sizes, dtype);
-    output.new_storage_(self.device());
-    return output;
-}
-
-Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device) {
-    Tensor output(shape, dtype);
-    output.new_storage_(device);
-    dmemset_zeros(output.data_ptr(), output.storage_bytes());
-    return output;
 }
 
 void print_tensor_(std::ostream &os, const Tensor &t, std::vector<int64_t> indices = {}, int dim = 0) {
