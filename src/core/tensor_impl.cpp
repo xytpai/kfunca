@@ -8,7 +8,8 @@ std::ostream &operator<<(std::ostream &os, const dim_t &d) {
     return os;
 }
 
-TensorImpl::TensorImpl(std::vector<int64_t> &shape, ScalarType dtype) {
+TensorImpl::TensorImpl(std::vector<int64_t> &shape, ScalarType dtype) :
+    grad_(nullptr, &delete_nothing) {
     CHECK_FAIL(shape.size() <= MAX_TENSOR_DIMS);
     dtype_ = dtype;
     dim_ = shape.size();
@@ -20,7 +21,8 @@ TensorImpl::TensorImpl(std::vector<int64_t> &shape, ScalarType dtype) {
     }
 }
 
-TensorImpl::TensorImpl(std::vector<int64_t> &shape, std::vector<int64_t> &strides, ScalarType dtype) {
+TensorImpl::TensorImpl(std::vector<int64_t> &shape, std::vector<int64_t> &strides, ScalarType dtype) :
+    grad_(nullptr, &delete_nothing) {
     CHECK_FAIL(shape.size() <= MAX_TENSOR_DIMS);
     CHECK_FAIL(strides.size() <= MAX_TENSOR_DIMS);
     dtype_ = dtype;
@@ -34,7 +36,8 @@ TensorImpl::TensorImpl(std::vector<int64_t> &shape, std::vector<int64_t> &stride
     }
 }
 
-TensorImpl::TensorImpl(int64_t *shape, int ndim, ScalarType dtype, bool inverse) {
+TensorImpl::TensorImpl(int64_t *shape, int ndim, ScalarType dtype, bool inverse) :
+    grad_(nullptr, &delete_nothing) {
     CHECK_FAIL(ndim <= MAX_TENSOR_DIMS);
     dtype_ = dtype;
     dim_ = ndim;

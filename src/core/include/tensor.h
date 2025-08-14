@@ -15,9 +15,16 @@ Tensor empty_like_reduced(const Tensor &self, int dim, ScalarType dtype);
 Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device = 0);
 std::ostream &operator<<(std::ostream &os, const Tensor &t);
 
+class GradFunction : public intrusive_ptr_target {
+public:
+    virtual std::vector<Tensor> backward(Tensor grad_output) = 0;
+    std::vector<Tensor> inputs;
+};
+
 class Tensor {
 private:
     intrusive_ptr<TensorImpl> impl_;
+    intrusive_ptr<GradFunction> grad_fn_;
     friend Tensor empty(std::vector<int64_t> shape, ScalarType dtype, int device);
     friend Tensor empty(int64_t *shape, int ndim, ScalarType dtype, int device, bool inverse);
     friend Tensor empty_like(const Tensor &self);
@@ -84,8 +91,14 @@ public:
     intrusive_ptr<TensorStorage> storage() const {
         return impl_.get()->storage();
     }
+    intrusive_ptr<GradFunction> grad_fn() const {
+        return grad_fn_;
+    }
     bool defined() const {
         return impl_.get() && impl_.get()->defined();
+    }
+    bool has_grad_fn() const {
+        return grad_fn_.get() != nullptr;
     }
     int device() const {
         return impl_.get()->device();
@@ -101,7 +114,19 @@ public:
     bool is_contiguous() const {
         return impl_.get()->is_contiguous();
     }
+    bool requires_grad() const {
+        return impl_.get()->requires_grad();
+    }
+    void set_requires_grad(bool flag) {
+        return impl_.get()->set_requires_grad(flag);
+    }
+    Tensor *grad() {
+        return impl_.get()->grad_.get();
+    }
 
+    void set_grad_fn(GradFunction *fn);
+    void update_grad(Tensor grad);
+    void backward(Tensor grad_output);
     void copy_from_cpu_ptr(void *ptr);
     void copy_to_cpu_ptr(void *ptr) const;
     any_t item(const std::vector<int64_t> &indices) const;

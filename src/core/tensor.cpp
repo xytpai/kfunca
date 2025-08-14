@@ -1,4 +1,6 @@
+#include <queue>
 #include <iomanip>
+#include <unordered_map>
 
 #include "tensor.h"
 #include "tensor_shape.h"
@@ -64,6 +66,63 @@ Tensor zeros(std::vector<int64_t> shape, ScalarType dtype, int device) {
     output.impl_.unsafe_set_ptr(impl);
     dmemset_zeros(output.data_ptr(), output.storage_bytes());
     return output;
+}
+
+void Tensor::set_grad_fn(GradFunction *fn) {
+    grad_fn_.unsafe_set_ptr(fn);
+}
+
+void Tensor::update_grad(Tensor grad) {
+    auto impl = this->impl_.get();
+    if (impl->grad_.get()) {
+        *impl->grad_ += grad;
+    } else {
+        Tensor grad_ = empty_like(grad);
+        grad_.copy_(grad);
+        impl->grad_ = std::unique_ptr<Tensor, TensorDeleter>(new Tensor(grad_), [](Tensor *t) { delete t; });
+    }
+}
+
+void Tensor::backward(Tensor grad_output) {
+    std::queue<Tensor *> ready;
+    std::unordered_map<TensorImpl *, int> needed;
+    std::unordered_map<TensorImpl *, Tensor> grad_acc;
+    // build needed counts
+    ready.push(this);
+    while (!ready.empty()) {
+        auto t = ready.front();
+        ready.pop();
+        if (t->has_grad_fn()) {
+            for (auto &input : t->grad_fn_.get()->inputs) {
+                if (!input.requires_grad()) continue;
+                needed[input.impl()] += 1;
+                ready.push(&input);
+            }
+        }
+    }
+    // calculate gradients
+    grad_acc[this->impl()] = grad_output;
+    ready.push(this);
+    while (!ready.empty()) {
+        auto t = ready.front();
+        ready.pop();
+        auto go = grad_acc[t->impl()];
+        if (t->has_grad_fn()) {
+            auto grad_fn = t->grad_fn_.get();
+            auto gis = grad_fn->backward(go);
+            auto &inputs = grad_fn->inputs;
+            for (int i = 0; i < inputs.size(); ++i) {
+                if (!inputs[i].requires_grad()) continue;
+                auto &acc = grad_acc[inputs[i].impl()];
+                acc = acc.defined() ? (acc + gis[i]) : gis[i];
+                if (--needed[inputs[i].impl()] == 0) {
+                    ready.push(&inputs[i]);
+                }
+            }
+        } else if (t->requires_grad()) {
+            t->update_grad(go);
+        }
+    }
 }
 
 void Tensor::copy_from_cpu_ptr(void *ptr) {
@@ -297,6 +356,10 @@ void print_tensor_(std::ostream &os, const Tensor &t, std::vector<int64_t> indic
 }
 
 std::ostream &operator<<(std::ostream &os, const Tensor &t) {
+    if (!t.defined()) {
+        os << "Tensor(Undefined)";
+        return os;
+    }
     t.data_ptr();
     os << "tensor(shape=[";
     for (int i = 0; i < t.dim(); ++i)

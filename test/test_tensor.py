@@ -282,6 +282,31 @@ class TestTensorImpl(object):
         values_pt = torch.from_numpy(values.numpy())
         arr_gpu_pt.index_put_(indices_t, values_pt)
         assert_allclose(arr_gpu, arr_gpu_pt)
+    
+    def test_basic_backward(self):
+        # grad
+        grad_ = np.random.uniform(-10, 10, size=(2, 3)).astype(np.float32)
+        grad = kfunca.from_numpy(grad_, 0)
+        # a
+        a_ = np.random.uniform(-10, 10, size=(2, 3)).astype(np.float32)
+        a = kfunca.from_numpy(a_, 0)
+        a.set_requires_grad(True)
+        # b
+        b_ = np.random.uniform(-10, 10, size=(2, 3)).astype(np.float32)
+        b = kfunca.from_numpy(b_, 0)
+        b.set_requires_grad(True)
+        # c
+        c_ = np.random.uniform(-10, 10, size=(2, 3)).astype(np.float32)
+        c = kfunca.from_numpy(c_, 0)
+        # cal
+        ca = c + a
+        ab = a + b
+        accb = ca + ab
+        accba = accb + a
+        # backward
+        accba.backward(grad)
+        assert_allclose(a.grad(), grad * 3)
+        assert_allclose(b.grad(), grad)
 
 
 if __name__ == '__main__':

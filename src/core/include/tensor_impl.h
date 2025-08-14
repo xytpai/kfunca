@@ -91,6 +91,11 @@ public:
     }
 };
 
+class Tensor;
+using TensorDeleter = void (*)(Tensor *);
+inline void delete_nothing(Tensor *) {
+}
+
 class TensorImpl : public intrusive_ptr_target {
 private:
     int dim_;
@@ -101,19 +106,22 @@ private:
     intrusive_ptr<TensorStorage> storage_;
     int64_t storage_offset_ = 0;
     bool is_contiguous_ = true;
+    bool requires_grad_ = false;
 
 public:
     TensorImpl(std::vector<int64_t> &shape, ScalarType dtype);
     TensorImpl(std::vector<int64_t> &shape, std::vector<int64_t> &strides, ScalarType dtype);
     TensorImpl(int64_t *shape, int ndim, ScalarType dtype, bool inverse);
     TensorImpl() :
-        storage_() {
+        storage_(), grad_(nullptr, &delete_nothing) {
     }
     TensorImpl(const TensorImpl &other) :
         dim_(other.dim_), shape_(other.shape_), stride_(other.stride_),
         dtype_(other.dtype_), numel_(other.numel_),
-        storage_(other.storage_), storage_offset_(other.storage_offset_),
-        is_contiguous_(other.is_contiguous_) {
+        storage_(other.storage_), grad_(nullptr, &delete_nothing),
+        storage_offset_(other.storage_offset_),
+        is_contiguous_(other.is_contiguous_),
+        requires_grad_(other.requires_grad_) {
     }
     TensorImpl &operator=(const TensorImpl &other) {
         dim_ = other.dim_;
@@ -122,8 +130,10 @@ public:
         dtype_ = other.dtype_;
         numel_ = other.numel_;
         storage_ = other.storage_;
+        grad_ = nullptr;
         storage_offset_ = other.storage_offset_;
         is_contiguous_ = other.is_contiguous_;
+        requires_grad_ = other.requires_grad_;
         return *this;
     }
     TensorImpl(TensorImpl &&other) = default;
@@ -190,6 +200,15 @@ public:
     bool is_contiguous() const {
         return is_contiguous_;
     }
+    bool requires_grad() const {
+        return requires_grad_;
+    }
+    void set_requires_grad(bool flag) {
+        requires_grad_ = flag;
+    }
     void new_storage_(int device);
     void as_strided_(std::vector<int64_t> sizes, std::vector<int64_t> strides, int64_t storage_offset = 0);
+
+public:
+    std::unique_ptr<Tensor, TensorDeleter> grad_;
 };

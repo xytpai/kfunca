@@ -211,5 +211,15 @@ PYBIND11_MODULE(kfunca, m) {
         .def("index_put_", &Tensor::index_put_)
         .def("half", &Tensor::_half)
         .def("bfloat16", &Tensor::_bfloat16)
-        .def("float", &Tensor::_float);
+        .def("float", &Tensor::_float)
+        .def("requires_grad", &Tensor::requires_grad)
+        .def("set_requires_grad", &Tensor::set_requires_grad)
+        .def("backward", &Tensor::backward)
+        .def("grad", [](Tensor &self) {
+            if (self.grad() && self.grad()->defined()) {
+                return *self.grad();
+            } else {
+                return Tensor();
+            }
+        });
 }
